@@ -1,189 +1,242 @@
-# transit-reliability
-DTCDE final project
+# Transit Reliability Intelligence System
 
-# what i did 
+This project builds a prototype transit route reliability platform for the New York City region.
+It combines OpenTripPlanner routing, GTFS static transit data, and dbt-based reliability feature modeling to rank transit routes based on structural reliability indicators.
 
-* created repo structure 
-mkdir -p {docker/{otp,postgres,dagster,kafka},services/{api,ingestion,scoring},dbt,dagster_project,data/{gtfs,osm}}
-touch docker-compose.yml README.md
+The system is designed as a data engineering–focused architecture rather than a user-facing application.
 
-* wrote docker-compose.yml
-* created .env file
+## Project Scope
 
-* wrote airflow/docker-compose.yml and created .env
+The goal is to evaluate transit routes not only by duration, but also by reliability proxies, including:
 
-docker compose down -v
-docker compose up -d
+* service frequency
+* reroute resilience
+* transfer risk proxies
+* headway stability
+* structural connectivity
 
-* tested services: 
-** airflow -> localhost:8080 
-** postgres (transit) and postgres (airflow) ->  docker exec -ti airflow-postgres-1 psql -U transit -d transit
-** kafka -> docker exec -it transit-reliability-kafka-1 kafka-topics --bootstrap-server localhost:9092 --list / docker exec -it transit-reliability-kafka-1 \
-kafka-topics --bootstrap-server localhost:9092 \
---create \
---topic test-topic
+The system currently ranks routes using network structure and service density, not real-time delay data.
 
-# Add OTP 
-** https://docs.opentripplanner.org/en/latest/Basic-Tutorial/
+## Current Capabilities
+### Routing
+* OpenTripPlanner routing engine
+* Multi-leg itinerary generation
+* Transfer detection
+* Duration extraction
+### Reliability Modeling (dbt)
+* route frequency modeling
+* stop connectivity (reroute resilience proxy)
+* transfer buffer approximation
+* headway variability
+* aggregated reliability score
+### API
+* FastAPI endpoint
+* route ranking
+* transfer-aware formatting
+* reliability score per itinerary
+### Containerization
+* Docker Compose stack
+* API container
+* Postgres container
+* OpenTripPlanner container
+### Architecture
+```
+User
+  ↓
+FastAPI API
+  ↓
+Scoring Engine
+  ↓
+Postgres (dbt models)
+  ↑
+GTFS Static Data
+  ↑
+OpenTripPlanner (routing)
+```
+## Data Sources
+### GTFS Static (Transit Data)
 
 
-* docker compose file: ????? whatever ahppenend there 
-* dwl wget https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf to data/osm https://download.geofabrik.de/north-america/us/new-york.html
-* dwl wget https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip to data/gtfs
-### actually i found this developer resources provided by mta: https://www.mta.info/developers
-* https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip
-* https://rrgtfsfeeds.s3.amazonaws.com/gtfs_supplemented.zip
-* https://rrgtfsfeeds.s3.amazonaws.com/gtfslirr.zip
-* https://rrgtfsfeeds.s3.amazonaws.com/gtfsmnr.zip
-* https://www.njtransit.com/developer-tools
+Download from:
 
-You need:
-
-MTA subway
-MTA bus
-LIRR
-Metro-North
-NJ Transit rail
-NJ Transit bus
-PATH
-
-That gives full NYC metro coverage.
-
-after checking transitland as well which looked tedious, i found: 
-
-# Found ideal source!!! 
 https://data.ny.gov/Transportation/MTA-General-Transit-Feed-Specification-GTFS-Static/fgm6-ccue/about_data
 
+Place the downloaded files into:
+```
+data/
+```
 
-* test: 1003 Morris Avenue, Union, New Jersey 07083, USA to 15 River St, Brooklyn, NY 11249, USA
+### OpenStreetMap Data (for OpenTripPlanner)
 
-* brought up otp and test on: http://localhost:8088/otp/routers/default
-http://localhost:8088/otp/routers/default/plan?fromPlace=40.7505,-73.9934&toPlace=40.7128,-74.0060&time=08:00am&date=03-25-2026&mode=TRANSIT,WALK
+Download New York extract:
 
-# phase 2 ingestion 
+https://download.geofabrik.de/north-america/us/new-york.html
 
-## I then created ingestion python folder
-* init uv 
-* installed dependencies 
-* create docker file 
-* created ingestion script load_gtfs.py
-* build container 
+Download:
 
-run : 
+new-york-latest.osm.pbf
 
-docker compose exec postgres psql -U transit -d transit -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+Place into:
+```
+data/
+```
+## Deployment (Full Stack)
+### 1. Clone repository
+```
+git clone 
+cd transit-reliability
+```
+### 2. Create environment file
 
-docker compose run  --remove-orphans ingestion 2>&1 | tee ingestion.log
+Create .env:
+```
+POSTGRES_HOST=postgres
+POSTGRES_USER=transit
+POSTGRES_PASSWORD=transit
+POSTGRES_DB=transit
+OTP_URL=http://otp:8080/otp/routers/default/plan
+```
+### 3. Start stack
+```
+docker compose up --build
+```
 
+### 4. Load GTFS data
 
-## how i use duckdb to view the data: 
-duckdb -ui 
-INSTALL postgres;
-LOAD postgres;
+Run ingestion container:
+```
+docker compose run ingestion
+```
+This loads GTFS files into Postgres.
 
-ATTACH 'host=localhost user=transit password=transit dbname=transit port=5432'
-AS transit (TYPE POSTGRES);
+### 5. Run dbt models
+```
+cd dbt/analytics
+uv run dbt run
+```
 
--- and how i use pgcli: 
-uv run 
+This builds reliability feature tables.
 
-# phase 3 
+### 6. Test API
 
-1. route_frequency        (service density)
-2. stop_connectivity      (reroute resilience)
-3. transfer_windows       (transfer risk)
-4. trip_performance       (delay / variance)
+Example:
 
--> 
+http://localhost:8000/routes/reliable?from_lat=40.7128&from_lon=-74.0060&to_lat=40.7580&to_lon=-73.9855
 
-Feature tables              → Reliability metric
-------------------------------------------------
-trip_performance            → on-time probability
-trip_performance            → delay variance
-transfer_windows            → transfer failure probability
-route_frequency             → time-of-day reliability
-stop_connectivity           → reroute resilience
-route_frequency + connectivity → reroute resilience
+Example with transfer:
 
-
-Core features: 
-Reliability scoring
-Transfer risk
-Delay variance
-Reroute resilience
-Ranking
-Explainability
-
-
-
-* dbt runs: uv run dbt run --full-refresh / dbt run --select staging marts
-
-
-### api ...
-* test locally: uv run --project services/api \
-  uvicorn services.api.main:app --reload --port 8000
-
-* from: 40.7128,-74.0060   → Lower Manhattan (City Hall / Wall St)
-* to:   40.7580,-73.9855   → Times Square
-* -> http://localhost:8000/routes/reliable?from_lat=40.7128&from_lon=-74.0060&to_lat=40.7580&to_lon=-73.9855
-
-* containarized with dockerfile and docker compose up --build api , then http://localhost:8000/docs
-
-* amazing test: 
-Test 1 — Astoria → Brooklyn (almost always 1 transfer)
+Test 2 — Astoria - Brooklyn (almost always 1 transfer and interesting example)
 http://localhost:8000/routes/reliable?from_lat=40.7700&from_lon=-73.9180&to_lat=40.6500&to_lon=-73.9496
+## Reliability Score
 
+The current reliability score is based on:
 
-# questions 
-* what is zookeeper 
-* why are we giving container_names: it will be confusing no?
+* route frequency
+* stop connectivity
+* reroute resilience proxy
+* headway stability
+* transfer buffer proxy
 
-* should we consider to use redpanda instead of kafka? 
-* should we consider to switch to Kafka KRaft (no ZooKeeper)
+These are structural indicators, not observed delays.
 
-* restart: unless-stopped / restart: on-failure.. what are the best policies for all the containers? 
+## Limitations
 
-* should i consider using dagster/airflow/kestra for the project? -> for now i tried with dagster it was annoying so ill go with kestra.
-* now im using airflow: https://www.youtube.com/watch?v=PbSIVDou17Q /
-https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html / 
-https://airflow.apache.org/docs/docker-stack/build.html
+This project currently has several known limitations:
 
-* currently api is returning duplicated routes( same route + same scoring but for some reason duplicates on different ranks)
+* No GTFS realtime ingestion
+* No actual delay modeling
+* Transfer risk is approximate
+* API requires latitude/longitude (no geocoding yet)
+* Duplicate itineraries may appear
+* No user preference weighting
+* No CI/testing yet
+* No cloud deployment
 
+The system ranks structural reliability, not operational performance.
 
+## Future Work
 
-# important question about the core evaluation: 
-is route resilience with avg avg_stop_connectivity a robust way of measuring that ?? 
-apparently my data has now hours per day 0, 1, 2, 3, ... 24 (apparently 1 hour too much ) see analytics.int_route_frequency
-mart_route_reliability uses: -- normalized score (simple first version) -- that can be revisited
-* score at (agency_id, route_id) if business understanding would justify it ? i have to understand first if that would make a difference in reality, or not :/ 
-* the transfer LEGS can also be a source for confusion and unreliability, later that should be improved somehow
+Planned improvements:
 
-# usage scenario
-* user does NOT usually look up latitude + longitude coordinates, it makes no sense. we need geocoding: address-lat/lon-OTP-routes-scoring: 
-OpenStreetMap Nominatim (free), or Mapbox / Google later?
+* GTFS realtime ingestion
+* delay variance modeling
+* transfer failure probability
+* time-of-day reliability refinement
+* address-based input (geocoding)
+* Airflow orchestration
+* Kafka streaming
+* AWS deployment
+* automated testing
 
-* add "fastest": true vs "most_reliable": true, or just show durations ... 
-
-
-# TESTING 
-* i havent written any tests yet.
-
-
-# IMPORTANT PERF IMPROVEMENTS 
+## Example Output on http://localhost:8000/routes/reliable?from_lat=40.7700&from_lon=-73.9180&to_lat=40.6500&to_lon=-73.9496
 ```
-create index if not exists idx_stop_times_stop
-on raw.stop_times(stop_id);
-
-create index if not exists idx_stop_times_trip
-on raw.stop_times(trip_id);
-
-create index if not exists idx_stop_times_arrival
-on raw.stop_times(arrival_time);
-
-create index if not exists idx_trips_trip
-on raw.trips(trip_id);
-
-create index if not exists idx_transfers_stop
-on raw.transfers(from_stop_id, to_stop_id);
+[
+  {
+    "rank": 1,
+    "recommended": true,
+    "fastest": false,
+    "duration_min": 71,
+    "transfers": 2,
+    "reliability_score": 215220.7,
+    "explanation": "high frequency, low worst-case wait, reliable during this time of day, high frequency, low worst-case wait, stable headways, reliable during this time of day, stable travel time, high frequency, low worst-case wait, reliable during this time of day",
+    "legs": [
+      {
+        "line": "W",
+        "mode": "SUBWAY",
+        "from": "Astoria Blvd",
+        "to": "Lexington Av/59 St"
+      },
+      {
+        "line": "4",
+        "mode": "SUBWAY",
+        "from": "59 St",
+        "to": "Franklin Av-Medgar Evers College"
+      },
+      {
+        "line": "2",
+        "mode": "SUBWAY",
+        "from": "Franklin Av-Medgar Evers College",
+        "to": "Church Av"
+      }
+    ]
+  },
+  {
+    "rank": 2,
+    "recommended": false,
+    "fastest": false,
+    "duration_min": 69,
+    "transfers": 1,
+    "reliability_score": 79606.11,
+    "explanation": "high frequency, low worst-case wait, reliable during this time of day, stable travel time, high frequency, low worst-case wait, reliable during this time of day",
+    "legs": [
+      {
+        "line": "N",
+        "mode": "SUBWAY",
+        "from": "Astoria Blvd",
+        "to": "Lexington Av/59 St"
+      },
+      {
+        "line": "5",
+        "mode": "SUBWAY",
+        "from": "59 St",
+        "to": "Church Av"
+      }
+    ]
+  }
+]
 ```
+
+## Tech Stack
+* Python
+* FastAPI
+* Postgres
+* dbt
+* OpenTripPlanner
+* Docker Compose
+* Airflow (planned)
+* Kafka (planned)
+
+## Status
+
+Reliability modeling is partially implemented.
+Realtime intelligence and orchestration remain future work.
