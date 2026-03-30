@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    tables:
+      - name: stop_times
+      - name: trips
+      - name: stops
+      - name: transfers
+      - name: routes
+      - name: calendar
+      - name: calendar_dates

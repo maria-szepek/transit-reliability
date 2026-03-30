@@ -1,0 +1,19 @@
+[project]
+name = "transit-reliability"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pgcli>=4.4.0",
+]
+
+[tool.uv.workspace]
+members = [
+    "dbt",
+    "services/scoring",
+    "services/api",
+]

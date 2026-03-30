@@ -1,0 +1,132 @@
+services:
+
+  postgres:
+    image: postgres:15
+    # container_name: transit_postgres
+    # environment:
+    #   POSTGRES_USER: transit
+    #   POSTGRES_PASSWORD: transit
+    #   POSTGRES_DB: transit
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    depends_on:
+      - postgres
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8085:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    # container_name: transit_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    # container_name: transit_kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  # dagster-webserver:
+  #   image: dagster/dagster:1.5.10
+  #   command: dagster-webserver -h 0.0.0.0 -p 3000
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - ./dagster_project:/opt/dagster/app
+
+  # dagster-daemon:
+  #   image: dagster/dagster:1.5.10
+  #   command: dagster-daemon run
+  #   volumes:
+  #     - ./dagster_project:/opt/dagster/app
+  #   depends_on:
+  #     - dagster-webserver
+
+  # api:
+  #   image: python:3.11-slim
+  #   # container_name: transit_api
+  #   working_dir: /app
+  #   volumes:
+  #     - ./services/api:/app
+  #   command: sleep infinity
+  #   ports:
+  #     - "8000:8000"
+
+  # api:
+  #   image: python:3.11-slim
+  #   working_dir: /app
+  #   volumes:
+  #     - ./services/api:/app
+  #     - ./services/scoring:/scoring
+  #   command: >
+  #     sh -c "pip install fastapi uvicorn && 
+  #           uvicorn main:app --host 0.0.0.0 --port 8000"
+  #   ports:
+  #     - "8000:8000"
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - otp
+    ports:
+      - "8000:8000"
+
+  otp:
+    image: opentripplanner/opentripplanner:2.5.0
+    ports:
+      - "8088:8080"
+    volumes:
+      - ./data:/var/opentripplanner
+    command: >
+      --build --serve
+
+  # ingestion:
+  #   build: ./services/ingestion
+  #   volumes:
+  #     - ./data:/data
+  #   depends_on:
+  #     - postgres
+
+  ingestion:
+    build:
+      context: ./services/ingestion
+    volumes:
+      - ./services/ingestion:/app
+      - ./data:/data
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+  
+
+
+volumes:
+  postgres_data:
+  pgadmin_data:
