@@ -43,5 +43,11 @@ RUN uv sync --locked
 # Copy source code
 COPY . .
 
-# Run with the venv python explicitly
-ENTRYPOINT ["/opt/venv/bin/python", "gtfs/load_gtfs.py"]
+
+
+
+# # Run with the venv python explicitly
+# ENTRYPOINT ["/opt/venv/bin/python", "gtfs/load_gtfs.py"]
+
+# NO ENTRYPOINT
+# NO CMD

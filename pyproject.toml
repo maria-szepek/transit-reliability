@@ -16,4 +16,5 @@ members = [
     "dbt",
     "services/scoring",
     "services/api",
+    "services/flink",
 ]
