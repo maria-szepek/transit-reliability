@@ -11,7 +11,7 @@ with base as (
         headway_stddev,
         delay_variance,
         time_reliability,
-        realtime_delay_risk,
+        -- realtime_delay_risk,
         reliability_score
     from {{ ref('mart_route_reliability') }}
 
@@ -57,12 +57,12 @@ select
         case 
             when delay_variance < 3 
             then 'low travel time variability' 
-        end,
-
-        case 
-            when realtime_delay_risk > 0.6 
-            then 'realtime delays detected' 
         end
+
+        -- case 
+        --     when realtime_delay_risk > 0.6 
+        --     then 'realtime delays detected' 
+        -- end
 
     ) as explanation
 

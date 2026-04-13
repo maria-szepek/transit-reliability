@@ -240,3 +240,35 @@ Planned improvements:
 
 Reliability modeling is partially implemented.
 Realtime intelligence and orchestration remain future work.
+
+
+# UPDATE SINCE LAST COMMIT: 
+
+Done: 
+
+1. created infra - terraform scripts for gcp deployment 
+2. created makefile 
+
+3. local development:
+
+3.1. scoring engine taking into consideration the new realtime data processing tables  
+3.2 update explanation layer 
+3.3 update api: add geocoding / place resolution layer to allow API to accept either coordinates or text locations
+3.4  write airflow dag(s) (static gtfs retrieval, osm updates, wahrehouse cleanup ) 
+3.5 write streamlit app (it is not good but at least it exists)
+
+Next steps: 
+4. cloud deployment 
+
+4.1. move the whole thing to the cloud infra 
+4.2  rewire everything (bucket, hw, vm, etc etc ) 
+4.3 host app somehow 
+
+5. complete and test makefile
+6. test thoroughly 
+
+7. optional: allow local deployment mode
+8. optional: write tests 
+
+
+

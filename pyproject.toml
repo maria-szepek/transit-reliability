@@ -17,4 +17,5 @@ members = [
     "services/scoring",
     "services/api",
     "services/flink",
+    "services/ui",
 ]

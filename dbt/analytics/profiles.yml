@@ -1,0 +1,12 @@
+analytics:
+  outputs:
+    dev:
+      dbname: transit
+      host: postgres  #  localhost
+      pass: transit
+      port: 5432
+      schema: analytics
+      threads: 4
+      type: postgres
+      user: transit
+  target: dev

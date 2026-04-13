@@ -42,15 +42,6 @@ time_rel as (
     from {{ ref('int_time_reliability') }}
     group by route_id
 
-),
-
-realtime as (
-
-    select
-        route_id,
-        realtime_delay_risk
-    from {{ ref('int_route_realtime_risk') }}
-
 )
 
 select
@@ -62,7 +53,6 @@ select
     b.headway_stddev,
     d.delay_variance,
     t.time_reliability,
-    rt.realtime_delay_risk,
 
     (
         0.18 * b.avg_stop_connectivity +
@@ -71,11 +61,11 @@ select
         0.12 * (1 - coalesce(b.avg_transfer_risk, 0.5)) +
         0.08 * (1 / (1 + coalesce(b.headway_stddev, 5))) +
         0.14 * coalesce(t.time_reliability, 0.5) +
-        0.10 * (1 / (1 + coalesce(d.delay_variance, 5))) +
-        0.12 * (1 - coalesce(rt.realtime_delay_risk, 0.5))
+        0.10 * (1 / (1 + coalesce(d.delay_variance, 5)))
     ) * 100 as reliability_score
 
 from base b
 left join delay d using (route_id)
 left join time_rel t using (route_id)
-left join realtime rt using (route_id)
+
+-- this only adds up to 88 percent it will be complimented in the final scoring layer together with the real time score 

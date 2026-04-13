@@ -29,6 +29,9 @@ kafka-topics --bootstrap-server localhost:9092 \
 
 * docker compose file: ????? whatever ahppenend there 
 * dwl wget https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf to data/osm https://download.geofabrik.de/north-america/us/new-york.html
+
+https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf
+
 * dwl wget https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip to data/gtfs
 ### actually i found this developer resources provided by mta: https://www.mta.info/developers
 * https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip
@@ -394,7 +397,146 @@ Reliability drops.
 
 ### maybe 
 * rename data to data_lake
+* add test -if it worked check points 
 
 ### very important, do not forget!!! 
 * need make cloud-destroy
 * 
+
+
+## how to run cloud : 
+git clone ...
+cd transit-reliability
+
+cp ~/Downloads/credentials.json infra/credentials.json
+
+Important requirement
+
+The credentials.json must be a service account key, not OAuth.
+
+It must have permissions:
+
+Compute Admin
+Storage Admin
+BigQuery Admin
+Service Account User
+
+(or project Editor for simplicity)
+
+make deploy-cloud
+make deploy-cloud PROJECT_ID=my-project
+
+# how to run: make deploy-cloud PROJECT_ID=my-project
+
+## requirements to list: terraform installation see https://developer.hashicorp.com/terraform/install
+
+
+## if error: 
+```
+google_compute_instance.vm: Creating...
+google_compute_instance.vm: Still creating... [00m10s elapsed]
+╷
+│ Error: Error waiting for instance to create: The zone 'projects/dtc-de-course-484903/zones/us-central1-a' does not have enough resources available to fulfill the request.  Try a different zone, or try again later.
+```
+use us-central1-b
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+vm_ip = "34.31.188.147"
+
+## test infra: 
+terraform -chdir=infra/terraform state list
+shoud list: 
+
+google_bigquery_dataset.warehouse
+google_compute_firewall.allow_http
+google_compute_instance.vm
+google_storage_bucket.lake
+
+
+## TODO: 
+* 7. Performance tip (important)
+
+Add index:
+CREATE INDEX idx_realtime_route_window
+ON analytics.realtime_stop_reliability(route_id, window_end DESC);
+
+
+## IMPORTANT TODO: 
+* partition by hour, drop partition for the streaming data cleanup
+
+* add OTP readiness wait in API
+
+
+
+###### Airflow should not run code directly, it should trigger containers. ???? what do we think about this philosophy? 
+###### how should we integrate the micro service dependencies into airflow, without creating a huge mess mixing everything together? 
+
+# dbt lineage graph: 
+```
+docker compose exec dbt dbt docs generate
+docker compose exec dbt dbt docs serve --host 0.0.0.0 --port 8081 
+```
+(because by default he would serve on port 8080)
+
+
+### something to investigate later: 
+
+(maybe its a walking trip? )
+```
+here in http://localhost:8000/routes/reliable?from_place=Times%20Square&to_place=Central%20Park something went wrong : [ { "rank": 1, "recommended": true, "fastest": false, "duration_min": 37, "transfers": 0, "reliability_score": 95868.19, "explanation": "2: high frequency, low worst-case wait, historically on-time", "legs": [ { "line": "2", "mode": "SUBWAY", "from": "Times Sq-42 St", "to": "86 St" } ] }, { "rank": 2, "recommended": false, "fastest": true, "duration_min": 29, "transfers": 0, "reliability_score": 21921.24, "explanation": "A: high frequency, low worst-case wait, historically on-time, low travel time variability", "legs": [ { "line": "A", "mode": "SUBWAY", "from": "42 St-Port Authority Bus Terminal", "to": "86 St" } ] }, { "rank": 3, "recommended": false, "fastest": false, "duration_min": 55, "transfers": 0, "reliability_score": 0, "explanation": null, "legs": [] } ]
+```
+
+
+# testing steamlit: 
+http://localhost:8000/routes/reliable?from_place=harlem&to_place=flatbush. !!!!!!!!!!!! okay to practice. 
+[
+  {
+    "rank": 1,
+    "recommended": true,
+    "fastest": false,
+    "duration_min": 78,
+    "transfers": 0,
+    "reliability_score": 95868.19,
+    "explanation": "2: high frequency, low worst-case wait, historically on-time",
+    "legs": [
+      {
+        "line": "2",
+        "mode": "SUBWAY",
+        "from": "125 St",
+        "to": "Church Av"
+      }
+    ]
+  },
+  {
+    "rank": 2,
+    "recommended": false,
+    "fastest": true,
+    "duration_min": 70,
+    "transfers": 1,
+    "reliability_score": 50927.1,
+    "explanation": "3: high frequency, low worst-case wait, historically on-time, Q: high frequency, low worst-case wait, historically on-time, low travel time variability",
+    "legs": [
+      {
+        "line": "3",
+        "mode": "SUBWAY",
+        "from": "125 St",
+        "to": "Times Sq-42 St"
+      },
+      {
+        "line": "Q",
+        "mode": "SUBWAY",
+        "from": "Times Sq-42 St",
+        "to": "Parkside Av"
+      }
+    ]
+  }
+]
+
+
+# IMPORTANT TODO: scaling !!!!! 
+
+
+# where i left off: check the app with ```uv run streamlit run services/ui/app.py```

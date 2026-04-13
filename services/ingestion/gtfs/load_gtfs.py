@@ -3,8 +3,8 @@ import zipfile
 import pandas as pd
 from sqlalchemy import create_engine, text, inspect
 
-# Directory mounted from docker compose
-DATA_DIR = "/data"
+# Directory containing GTFS zip files
+DATA_DIR = os.getenv("DATA_DIR", "/opt/project/data")
 SCHEMA = "raw"
 
 # Read DB config from environment
@@ -25,18 +25,20 @@ engine = create_engine(DB_URI)
 
 def ensure_schema():
     with engine.begin() as conn:
-        conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}"))
+        conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{SCHEMA}"'))
 
 
 def ensure_columns(table_name, df):
     with engine.begin() as conn:
         existing = conn.execute(
-            text("""
+            text(
+                """
                 SELECT column_name
                 FROM information_schema.columns
                 WHERE table_schema = :schema
-                AND table_name = :table
-            """),
+                  AND table_name = :table
+                """
+            ),
             {"schema": SCHEMA, "table": table_name},
         )
 
@@ -53,12 +55,25 @@ def ensure_columns(table_name, df):
                 )
 
 
-def load_zip(zip_path: str):
-    print(f"\nLoading ZIP: {zip_path}")
+def truncate_all_tables():
+    print("Truncating existing GTFS tables")
 
     inspector = inspect(engine)
 
+    with engine.begin() as conn:
+        for table in inspector.get_table_names(schema=SCHEMA):
+            print(f"  truncating {table}")
+            conn.execute(
+                text(f'TRUNCATE TABLE "{SCHEMA}"."{table}"')
+            )
+
+
+def load_zip(zip_path: str):
+    print(f"\nLoading ZIP: {zip_path}")
+
     with zipfile.ZipFile(zip_path, "r") as z:
+        inspector = inspect(engine)
+
         for file in z.namelist():
             if not file.endswith(".txt"):
                 continue
@@ -70,7 +85,6 @@ def load_zip(zip_path: str):
                 df = pd.read_csv(f, dtype=str, low_memory=False)
                 df.columns = [c.lower() for c in df.columns]
 
-                # create table if first time
                 if not inspector.has_table(table_name, schema=SCHEMA):
                     print(f"    creating table {SCHEMA}.{table_name}")
                     df.head(0).to_sql(
@@ -96,12 +110,23 @@ def load_zip(zip_path: str):
 def main():
     print("Starting GTFS ingestion...")
     print(f"Using DB: {DB_URI}")
+    print(f"Using data dir: {DATA_DIR}")
+
+    if not os.path.isdir(DATA_DIR):
+        raise FileNotFoundError(f"DATA_DIR does not exist: {DATA_DIR}")
 
     ensure_schema()
+    truncate_all_tables()
 
-    for file in os.listdir(DATA_DIR):
-        if file.endswith(".zip"):
-            load_zip(os.path.join(DATA_DIR, file))
+    zip_files = sorted(
+        file for file in os.listdir(DATA_DIR) if file.endswith(".zip")
+    )
+
+    if not zip_files:
+        raise FileNotFoundError(f"No .zip files found in {DATA_DIR}")
+
+    for file in zip_files:
+        load_zip(os.path.join(DATA_DIR, file))
 
     print("\nIngestion completed.")
 

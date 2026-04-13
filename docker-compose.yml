@@ -13,6 +13,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    shm_size: 2gb # i added this because for analytics otherwise the memory was too small and crashed
 
   pgadmin:
     image: dpage/pgadmin4
@@ -91,16 +92,16 @@ services:
       - .env
     restart: unless-stopped
 
-  realtime-gtfs-consumer:
-    build:
-      context: ./services/ingestion
-    command: python -u -m realtime.gtfs_realtime_consumer
-    depends_on:
-      - kafka
-      - postgres
-    env_file:
-      - .env
-    restart: unless-stopped
+  # realtime-gtfs-consumer:
+  #   build:
+  #     context: ./services/ingestion
+  #   command: python -u -m realtime.gtfs_realtime_consumer
+  #   depends_on:
+  #     - kafka
+  #     - postgres
+  #   env_file:
+  #     - .env
+  #   restart: unless-stopped
 
   # static-gtfs-ingestion:
   #   build:
@@ -113,18 +114,20 @@ services:
   #   env_file:
   #     - .env
 
-  static-gtfs-ingestion:
-    build:
-      context: ./services/ingestion
-    command: python -u -m gtfs.load_gtfs
-    volumes:
-      - ./data:/data
-    depends_on:
-      - postgres
-    env_file:
-      - .env
-    profiles:
-      - batch
+
+# OLD STATIC DATA INGESTION CONTAINER 
+  # static-gtfs-ingestion:
+  #   build:
+  #     context: ./services/ingestion
+  #   command: python -u -m gtfs.load_gtfs
+  #   volumes:
+  #     - ./data:/data
+  #   depends_on:
+  #     - postgres
+  #   env_file:
+  #     - .env
+  #   profiles:
+  #     - batch
 
   # dagster-webserver:
   #   image: dagster/dagster:1.5.10
@@ -176,6 +179,7 @@ services:
       - kafka
     ports:
       - "8000:8000"
+    # TODO : add OTP readiness wait in API
 
   otp:
     image: opentripplanner/opentripplanner:2.5.0
@@ -273,9 +277,9 @@ services:
     command: >
       bash -c "
       echo 'Submitting Flink job...' &&
-      flink run -py /opt/flink/usrlib/job.py
+      flink run -m flink-jobmanager:8081 -py /opt/flink/usrlib/job.py
       "
-    restart: unless-stopped
+    # restart: unless-stopped
   
 
 

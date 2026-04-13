@@ -11,7 +11,7 @@ sources:
       - name: routes
       - name: calendar
       - name: calendar_dates
-  - name: raw_realtime
-    schema: raw_realtime
-    tables:
-      - name: trip_updates
+  # - name: raw_realtime
+  #   schema: raw_realtime
+  #   tables:
+  #     - name: trip_updates

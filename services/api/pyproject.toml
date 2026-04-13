@@ -10,3 +10,5 @@ dependencies = [
     "requests>=2.33.0",
     "uvicorn>=0.42.0",
 ]
+[tool.setuptools]
+py-modules = ["main", "geocoding"]  # added because setuptools whatever that is complains otherwise what to package
