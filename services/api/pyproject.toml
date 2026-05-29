@@ -1,13 +1,18 @@
 [project]
-name = "api"
+name = "transit-reliability-api"
 version = "0.1.0"
-description = "Add your description here"
+description = "FastAPI service for transit route reliability scoring"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.135.2",
     "psycopg2-binary>=2.9.11",
     "requests>=2.33.0",
+    "transit-reliability-scoring",
     "uvicorn>=0.42.0",
 ]
+
+[tool.uv.sources]
+transit-reliability-scoring = { workspace = true }
+
 [tool.setuptools]
 py-modules = ["main", "geocoding"]

@@ -100,6 +100,9 @@ POSTGRES_PASSWORD=transit
 POSTGRES_DB=transit
 
 OTP_URL=http://otp:8080/otp/routers/default/plan
+
+AIRFLOW_UID=50000
+DOCKER_GID=999
 ```
 
 ### 3. Start the transit platform
@@ -118,17 +121,9 @@ This starts the core platform:
 * Flink
 * FastAPI
 * GTFS Realtime Producer
+* Airflow
 
 Wait until all services are running successfully.
-
-### 4. Start Airflow
-
-Open a new terminal and start the Airflow stack:
-
-```bash
-cd airflow
-docker compose up --build
-```
 
 Open the Airflow UI:
 
@@ -136,7 +131,7 @@ Open the Airflow UI:
 http://localhost:8080
 ```
 
-### 5. Trigger the initial data pipelines
+### 4. Trigger the initial data pipelines
 
 From the Airflow UI, manually trigger the following DAGs:
 
@@ -154,7 +149,7 @@ These workflows will:
 
 Wait until both DAGs complete successfully.
 
-### 6. Verify the platform
+### 5. Verify the platform
 
 Open:
 
@@ -171,7 +166,7 @@ You should see:
 * active GTFS realtime ingestion
 * the `/routes/reliable` endpoint available in FastAPI
 
-### 7. Start the Streamlit application
+### 6. Start the Streamlit application
 
 From the project root:
 
@@ -179,7 +174,7 @@ From the project root:
 uv run streamlit run services/ui/app.py
 ```
 
-### 8. Test the system
+### 7. Test the system
 
 Open the Streamlit application or use the FastAPI Swagger UI:
 
@@ -190,7 +185,7 @@ http://localhost:8000/docs
 The `/routes/reliable` endpoint accepts either coordinates or text locations and returns ranked itineraries based on both static and realtime reliability metrics.
 
 
-### 6. Test API
+### 8. Test API
 
 Example:
 

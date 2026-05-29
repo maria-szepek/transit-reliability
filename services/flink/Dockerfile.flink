@@ -3,11 +3,18 @@ FROM flink:2.2.0-scala_2.12-java17
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/
 
 WORKDIR /opt/pyflink
-COPY pyproject.toml .
+COPY pyproject.toml uv.lock ./
+COPY dbt/pyproject.toml ./dbt/
+COPY services/api/pyproject.toml ./services/api/
+COPY services/scoring/pyproject.toml ./services/scoring/
+COPY services/ingestion/pyproject.toml ./services/ingestion/
+COPY services/flink/pyproject.toml ./services/flink/
+COPY services/ui/pyproject.toml ./services/ui/
+COPY services/flink ./services/flink
 
 USER root
 ENV UV_PYTHON_INSTALL_DIR=/opt/python
-RUN uv python install 3.11 && uv sync
+RUN uv python install 3.11 && uv sync --locked --package transit-reliability-flink --no-dev
 RUN chown -R flink:flink /opt/pyflink
 RUN chmod -R 755 /opt/pyflink
 

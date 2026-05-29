@@ -1,5 +1,6 @@
 import requests
 
+
 def geocode(place: str):
     url = "https://nominatim.openstreetmap.org/search"
 

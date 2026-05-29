@@ -1,7 +1,7 @@
-# ASSUMPTIONS
-requests
-psycopg2-binary
+# Runtime dependencies used by Airflow DAG code.
+requests>=2.33.0
+psycopg2-binary>=2.9.11
 
-# RUN DBT MICROSERVICE
+# dbt CLI used by the GTFS static refresh DAG.
 dbt-core>=1.10.20
 dbt-postgres>=1.10.0

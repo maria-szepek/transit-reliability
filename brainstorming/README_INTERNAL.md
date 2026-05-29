@@ -10,7 +10,7 @@ touch docker-compose.yml README.md
 * wrote docker-compose.yml
 * created .env file
 
-* wrote airflow/docker-compose.yml and created .env
+* initially wrote airflow/docker-compose.yml and created .env; later consolidated Airflow into the root docker-compose.yml
 
 docker compose down -v
 docker compose up -d

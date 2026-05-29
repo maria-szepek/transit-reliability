@@ -1,7 +1,7 @@
 [project]
-name = "flink"
+name = "transit-reliability-flink"
 version = "0.1.0"
-description = "Add your description here"
+description = "PyFlink stream job for realtime transit reliability features"
 requires-python = ">=3.11"
 dependencies = [
     "apache-flink>=1.9.3",

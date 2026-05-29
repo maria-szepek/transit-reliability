@@ -1,53 +1,24 @@
-# FROM python:3.11-slim
-
-# # install uv
-# COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/
-
-# WORKDIR /app
-
-# # create venv explicitly
-# # RUN uv venv
-
-# # activate venv
-# ENV PATH="/app/.venv/bin:$PATH"
-
-# # copy dependency files
-# COPY pyproject.toml .python-version uv.lock ./
-# RUN uv sync --locked
-
-# # install dependencies
-# RUN uv sync --locked
-
-# # copy source code
-# COPY . .
-
-# # ENTRYPOINT ["python", "gtfs/load_gtfs.py"]
-# ENTRYPOINT [".venv/bin/python", "gtfs/load_gtfs.py"]
-
 FROM python:3.11-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 WORKDIR /app
 
-# Put the virtual environment OUTSIDE /app so bind mounts do not overwrite it
+# Keep the virtual environment outside /app so bind mounts do not overwrite it.
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy dependency files first
-COPY pyproject.toml uv.lock .python-version ./
+COPY pyproject.toml uv.lock ./
+COPY dbt/pyproject.toml ./dbt/
+COPY services/api/pyproject.toml ./services/api/
+COPY services/scoring/pyproject.toml ./services/scoring/
+COPY services/ingestion/pyproject.toml ./services/ingestion/
+COPY services/flink/pyproject.toml ./services/flink/
+COPY services/ui/pyproject.toml ./services/ui/
+COPY services/ingestion ./services/ingestion
 
-# Install dependencies into /opt/venv
-RUN uv sync --locked
+RUN uv sync --locked --package transit-reliability-ingestion --no-dev
 
-# Copy source code
-COPY . .
+WORKDIR /app/services/ingestion
 
-
-
-
-# # Run with the venv python explicitly
-# ENTRYPOINT ["/opt/venv/bin/python", "gtfs/load_gtfs.py"]
-
-# NO ENTRYPOINT
-# NO CMD
+# Commands are supplied by docker-compose or Airflow tasks.

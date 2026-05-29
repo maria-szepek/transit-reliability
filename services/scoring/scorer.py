@@ -7,14 +7,22 @@ from services.scoring.realtime_lookup import get_realtime_scores
 def score_routes(from_lat, from_lon, to_lat, to_lon):
     itineraries = get_routes(from_lat, from_lon, to_lat, to_lon)
 
+    itinerary_route_ids = [
+        extract_route_ids(itinerary)
+        for itinerary in itineraries
+    ]
+    all_route_ids = sorted({
+        route_id
+        for route_ids in itinerary_route_ids
+        for route_id in route_ids
+    })
+
+    static_scores = get_route_scores(all_route_ids)
+    realtime_scores = get_realtime_scores(all_route_ids)
+
     scored = []
 
-    for itinerary in itineraries:
-        route_ids = extract_route_ids(itinerary)
-
-        static_scores = get_route_scores(route_ids)
-        realtime_scores = get_realtime_scores(route_ids)
-
+    for itinerary, route_ids in zip(itineraries, itinerary_route_ids):
         route_final_scores = []
         explanations = []
 
@@ -28,15 +36,9 @@ def score_routes(from_lat, from_lon, to_lat, to_lon):
             realtime_risk = realtime_entry.get("risk", 0.0)
             realtime_explanation = realtime_entry.get("explanation")
 
-            # Fallback if no static score exists for this route
             if static_score is None:
                 static_score = 50.0
 
-            # Apply realtime penalty to static score
-            # Example:
-            #   risk = 0.0  -> no penalty
-            #   risk = 1.0  -> 15% penalty
-            # final_route_score = static_score * (1 - 0.15 * realtime_risk)
             final_route_score = float(static_score) * (1 - 0.15 * float(realtime_risk))
             route_final_scores.append(final_route_score)
 

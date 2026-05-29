@@ -1,20 +1,23 @@
 [project]
 name = "transit-reliability"
 version = "0.1.0"
-description = "Add your description here"
+description = "Local transit reliability data platform and routing prototype"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = []
 
 [dependency-groups]
 dev = [
     "pgcli>=4.4.0",
+    "pytest>=9.0.2",
+    "ruff>=0.14.8",
 ]
 
 [tool.uv.workspace]
 members = [
     "dbt",
     "services/scoring",
+    "services/ingestion",
     "services/api",
     "services/flink",
     "services/ui",

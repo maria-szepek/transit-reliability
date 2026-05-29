@@ -1,8 +1,11 @@
 [project]
-name = "ui"
+name = "transit-reliability-ui"
 version = "0.1.0"
-description = "Add your description here"
+description = "Streamlit dashboard for transit reliability exploration"
 requires-python = ">=3.11"
 dependencies = [
+    "pandas>=2.3.3",
+    "psycopg2-binary>=2.9.11",
+    "requests>=2.33.0",
     "streamlit>=1.56.0",
 ]

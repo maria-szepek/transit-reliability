@@ -1,7 +1,7 @@
 [project]
-name = "scoring"
+name = "transit-reliability-scoring"
 version = "0.1.0"
-description = "Add your description here"
+description = "Shared route parsing and reliability scoring logic"
 requires-python = ">=3.11"
 dependencies = [
     "psycopg2-binary>=2.9.11",

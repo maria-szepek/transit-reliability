@@ -1,8 +1,8 @@
 [project]
-name = "ingestion"
+name = "transit-reliability-ingestion"
 version = "0.1.0"
-description = "Add your description here"
-requires-python = ">=3.10"
+description = "GTFS static loading and GTFS-Realtime Kafka producer jobs"
+requires-python = ">=3.11"
 dependencies = [
     "gtfs-realtime-bindings>=2.0.0",
     "kafka-python>=2.3.0",

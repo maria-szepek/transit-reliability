@@ -15,7 +15,8 @@ def get_routes(from_lat, from_lon, to_lat, to_lon):
         "numItineraries": 5
     }
 
-    response = requests.get(OTP_URL, params=params)
+    response = requests.get(OTP_URL, params=params, timeout=15)
     response.raise_for_status()
 
-    return response.json()["plan"]["itineraries"]
+    data = response.json()
+    return data.get("plan", {}).get("itineraries", [])
