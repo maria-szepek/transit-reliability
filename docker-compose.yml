@@ -2,11 +2,6 @@ services:
 
   postgres:
     image: postgres:15
-    # container_name: transit_postgres
-    # environment:
-    #   POSTGRES_USER: transit
-    #   POSTGRES_PASSWORD: transit
-    #   POSTGRES_DB: transit
     env_file:
       - .env
     ports:
@@ -29,7 +24,6 @@ services:
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
-    # container_name: transit_zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
     ports:
@@ -37,7 +31,6 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
-    # container_name: transit_kafka
     depends_on:
       - zookeeper
     ports:
@@ -62,25 +55,10 @@ services:
 
       echo -e 'Creating kafka topics'
       kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic gtfs.trip_updates --replication-factor 1 --partitions 1
-      # kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic vehicle-positions --replication-factor 1 --partitions 1
-      # kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic alerts --replication-factor 1 --partitions 1
-      # kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic my-topic-2 --replication-factor 1 --partitions 1
 
       echo -e 'Successfully created the following topics:'
       kafka-topics --bootstrap-server kafka:9092 --list
       "
-  # realtime-producer:
-  #   build: ./services/ingestion
-  #   command: python -m realtime.gtfs_rt_producer
-  #   depends_on:
-  #     - kafka
-
-  # realtime-consumer:
-  #   build: ./services/ingestion
-  #   command: python -m realtime.gtfs_rt_consumer
-  #   depends_on:
-  #     - kafka
-  #     - postgres
 
   realtime-gtfs-producer:
     build:
@@ -92,80 +70,6 @@ services:
       - .env
     restart: unless-stopped
 
-  # realtime-gtfs-consumer:
-  #   build:
-  #     context: ./services/ingestion
-  #   command: python -u -m realtime.gtfs_realtime_consumer
-  #   depends_on:
-  #     - kafka
-  #     - postgres
-  #   env_file:
-  #     - .env
-  #   restart: unless-stopped
-
-  # static-gtfs-ingestion:
-  #   build:
-  #     context: ./services/ingestion
-  #   command: python -m gtfs.load_gtfs
-  #   volumes:
-  #     - ./data:/data
-  #   depends_on:
-  #     - postgres
-  #   env_file:
-  #     - .env
-
-
-# OLD STATIC DATA INGESTION CONTAINER 
-  # static-gtfs-ingestion:
-  #   build:
-  #     context: ./services/ingestion
-  #   command: python -u -m gtfs.load_gtfs
-  #   volumes:
-  #     - ./data:/data
-  #   depends_on:
-  #     - postgres
-  #   env_file:
-  #     - .env
-  #   profiles:
-  #     - batch
-
-  # dagster-webserver:
-  #   image: dagster/dagster:1.5.10
-  #   command: dagster-webserver -h 0.0.0.0 -p 3000
-  #   ports:
-  #     - "3000:3000"
-  #   volumes:
-  #     - ./dagster_project:/opt/dagster/app
-
-  # dagster-daemon:
-  #   image: dagster/dagster:1.5.10
-  #   command: dagster-daemon run
-  #   volumes:
-  #     - ./dagster_project:/opt/dagster/app
-  #   depends_on:
-  #     - dagster-webserver
-
-  # api:
-  #   image: python:3.11-slim
-  #   # container_name: transit_api
-  #   working_dir: /app
-  #   volumes:
-  #     - ./services/api:/app
-  #   command: sleep infinity
-  #   ports:
-  #     - "8000:8000"
-
-  # api:
-  #   image: python:3.11-slim
-  #   working_dir: /app
-  #   volumes:
-  #     - ./services/api:/app
-  #     - ./services/scoring:/scoring
-  #   command: >
-  #     sh -c "pip install fastapi uvicorn && 
-  #           uvicorn main:app --host 0.0.0.0 --port 8000"
-  #   ports:
-  #     - "8000:8000"
 
   api:
     build:
@@ -179,7 +83,6 @@ services:
       - kafka
     ports:
       - "8000:8000"
-    # TODO : add OTP readiness wait in API
 
   otp:
     image: opentripplanner/opentripplanner:2.5.0
@@ -189,25 +92,6 @@ services:
       - ./data:/var/opentripplanner
     command: >
       --build --serve
-
-  # ingestion:
-  #   build: ./services/ingestion
-  #   volumes:
-  #     - ./data:/data
-  #   depends_on:
-  #     - postgres
-
-  # ingestion:
-  #   build:
-  #     context: ./services/ingestion
-  #   volumes:
-  #     - ./services/ingestion:/app
-  #     - ./data:/data
-  #   depends_on:
-  #     - postgres
-  #   env_file:
-  #     - .env
-
 
   flink-jobmanager:
     build:
@@ -246,23 +130,6 @@ services:
         taskmanager.numberOfTaskSlots: 15
         parallelism.default: 3
 
-  # flink-submit:
-  #   build:
-  #     context: ./services/flink
-  #     dockerfile: Dockerfile.flink
-  #   depends_on:
-  #     - flink-jobmanager
-  #     - flink-taskmanager
-  #   volumes:
-  #     - ./services/flink:/opt/flink/usrlib
-  #   command: >
-  #     bash -c "
-  #     echo 'Waiting for Flink cluster...' &&
-  #     sleep 15 &&
-  #     flink run -py /opt/flink/usrlib/job.py
-  #     "
-  #   restart: unless-stopped
-
   flink-submit:
     build:
       context: ./services/flink
@@ -279,19 +146,7 @@ services:
       echo 'Submitting Flink job...' &&
       flink run -m flink-jobmanager:8081 -py /opt/flink/usrlib/job.py
       "
-    # restart: unless-stopped
   
-
-
 volumes:
   postgres_data:
   pgadmin_data:
-
-# taskmanager:
-#   deploy:
-#     resources:
-#       limits:
-#         cpus: "2.0"
-#         memory: 2G
-
-

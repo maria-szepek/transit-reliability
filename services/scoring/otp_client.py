@@ -1,9 +1,6 @@
 import requests
 import os
 
-
-# OTP_URL = "http://localhost:8088/otp/routers/default/plan"
-# OTP_URL = "http://otp:8080/otp/routers/default/plan"
 OTP_URL = os.getenv(
     "OTP_URL",
     "http://localhost:8088/otp/routers/default/plan"

@@ -87,3 +87,5 @@ temp/
 
 # Local .terraform directories
 .terraform/
+*.tfstate
+*.tfstate.*

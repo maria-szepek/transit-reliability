@@ -1,13 +1,3 @@
-# def extract_route_ids(itinerary):
-#     route_ids = []
-
-#     for leg in itinerary["legs"]:
-#         if "routeId" in leg:
-#             route_ids.append(leg["routeId"])
-
-#     return route_ids
-
-
 def extract_route_ids(itinerary):
     route_ids = []
 

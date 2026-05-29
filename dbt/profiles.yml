@@ -1,12 +1,12 @@
 analytics:
   outputs:
     dev:
-      dbname: transit
-      host: localhost
-      pass: transit
-      port: 5432
+      dbname: "{{ env_var('POSTGRES_DB', 'transit') }}"
+      host: "{{ env_var('POSTGRES_HOST', 'localhost') }}"
+      pass: "{{ env_var('POSTGRES_PASSWORD', 'transit') }}"
+      port: "{{ env_var('POSTGRES_PORT', '5432') | int }}"
       schema: analytics
       threads: 4
       type: postgres
-      user: transit
+      user: "{{ env_var('POSTGRES_USER', 'transit') }}"
   target: dev

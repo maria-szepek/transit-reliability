@@ -1,0 +1,29 @@
+- cleanup dead code in all the files freely as you want : let me confirm before proceeding but you can do it yourself!
+
+- describe/ explain the realtime data and its usage somewhere, e.g.: 
+### GTFS-Realtime actually has three feed types:
+
+* Trip Updates – delays for scheduled trips
+** Contains delay vs schedule; Directly usable for:
+*** on-time probability
+*** delay variance
+*** transfer failure probability
+
+
+* Vehicle Positions – real-time GPS location of vehicles
+* Service Alerts – disruptions, closures, etc.
+
+- describe/ explain the scoring logic somewhere:  e.g. 
+User query
+   ↓
+OTP routes
+   ↓
+Extract route IDs
+   ↓
+Lookup reliability
+   ↓
+Score itinerary
+   ↓
+Rank routes 
+
+

@@ -80,42 +80,115 @@ Place into:
 ```
 data/
 ```
-## Deployment (Full Stack)
-### 1. Clone repository
-```
-git clone 
+## Deployment (Local)
+
+### 1. Clone the repository
+
+```bash
+git clone <repository-url>
 cd transit-reliability
 ```
-### 2. Create environment file
 
-Create .env:
-```
+### 2. Create the environment file
+
+Create a `.env` file in the project root:
+
+```env
 POSTGRES_HOST=postgres
 POSTGRES_USER=transit
 POSTGRES_PASSWORD=transit
 POSTGRES_DB=transit
+
 OTP_URL=http://otp:8080/otp/routers/default/plan
 ```
-### 3. Start stack
-```
+
+### 3. Start the transit platform
+
+From the project root:
+
+```bash
 docker compose up --build
 ```
 
-### 4. Load GTFS data
+This starts the core platform:
 
-Run ingestion container:
-```
-docker compose run ingestion
-```
-This loads GTFS files into Postgres.
+* Postgres
+* Kafka
+* OpenTripPlanner
+* Flink
+* FastAPI
+* GTFS Realtime Producer
 
-### 5. Run dbt models
-```
-cd dbt/analytics
-uv run dbt run
+Wait until all services are running successfully.
+
+### 4. Start Airflow
+
+Open a new terminal and start the Airflow stack:
+
+```bash
+cd airflow
+docker compose up --build
 ```
 
-This builds reliability feature tables.
+Open the Airflow UI:
+
+```text
+http://localhost:8080
+```
+
+### 5. Trigger the initial data pipelines
+
+From the Airflow UI, manually trigger the following DAGs:
+
+1. `osm_refresh`
+2. `gtfs_static_refresh`
+3. `warehouse_cleanup.py`
+
+These workflows will:
+
+* download the latest OpenStreetMap extract
+* download the latest GTFS static feeds
+* load GTFS data into Postgres
+* run dbt models
+* rebuild the OpenTripPlanner graph
+
+Wait until both DAGs complete successfully.
+
+### 6. Verify the platform
+
+Open:
+
+```text
+API Docs:   http://localhost:8000/docs
+Flink UI:   http://localhost:8081
+OTP:        http://localhost:8088
+Airflow:    http://localhost:8080
+```
+
+You should see:
+
+* a running Flink job
+* active GTFS realtime ingestion
+* the `/routes/reliable` endpoint available in FastAPI
+
+### 7. Start the Streamlit application
+
+From the project root:
+
+```bash
+uv run streamlit run services/ui/app.py
+```
+
+### 8. Test the system
+
+Open the Streamlit application or use the FastAPI Swagger UI:
+
+```text
+http://localhost:8000/docs
+```
+
+The `/routes/reliable` endpoint accepts either coordinates or text locations and returns ranked itineraries based on both static and realtime reliability metrics.
+
 
 ### 6. Test API
 
@@ -143,29 +216,24 @@ These are structural indicators, not observed delays.
 
 This project currently has several known limitations:
 
-* No GTFS realtime ingestion
-* No actual delay modeling
+* Realtime scoring is based on GTFS-Realtime prediction drift, not observed arrival outcomes
 * Transfer risk is approximate
-* API requires latitude/longitude (no geocoding yet)
 * Duplicate itineraries may appear
 * No user preference weighting
-* No CI/testing yet
-* No cloud deployment
+* Test coverage is limited
+* Cloud deployment is scaffolded but not fully automated
 
-The system ranks structural reliability, not operational performance.
+The system is still a prototype and should be interpreted as reliability scoring by proxy.
 
 ## Future Work
 
 Planned improvements:
 
-* GTFS realtime ingestion
-* delay variance modeling
-* transfer failure probability
+* stronger delay variance modeling
+* stronger transfer failure probability
 * time-of-day reliability refinement
-* address-based input (geocoding)
-* Airflow orchestration
-* Kafka streaming
-* AWS deployment
+* user preference weighting
+* cloud deployment hardening
 * automated testing
 
 ## Example Output on http://localhost:8000/routes/reliable?from_lat=40.7700&from_lon=-73.9180&to_lat=40.6500&to_lon=-73.9496
@@ -233,42 +301,11 @@ Planned improvements:
 * dbt
 * OpenTripPlanner
 * Docker Compose
-* Airflow (planned)
-* Kafka (planned)
+* Airflow
+* Kafka
+* Flink
+* Streamlit
 
 ## Status
 
-Reliability modeling is partially implemented.
-Realtime intelligence and orchestration remain future work.
-
-
-# UPDATE SINCE LAST COMMIT: 
-
-Done: 
-
-1. created infra - terraform scripts for gcp deployment 
-2. created makefile 
-
-3. local development:
-
-3.1. scoring engine taking into consideration the new realtime data processing tables  
-3.2 update explanation layer 
-3.3 update api: add geocoding / place resolution layer to allow API to accept either coordinates or text locations
-3.4  write airflow dag(s) (static gtfs retrieval, osm updates, wahrehouse cleanup ) 
-3.5 write streamlit app (it is not good but at least it exists)
-
-Next steps: 
-4. cloud deployment 
-
-4.1. move the whole thing to the cloud infra 
-4.2  rewire everything (bucket, hw, vm, etc etc ) 
-4.3 host app somehow 
-
-5. complete and test makefile
-6. test thoroughly 
-
-7. optional: allow local deployment mode
-8. optional: write tests 
-
-
-
+Reliability modeling, realtime ingestion, Airflow orchestration, and the API/UI prototype are implemented for local development. Cloud deployment and production hardening remain incomplete.

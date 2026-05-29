@@ -9,7 +9,6 @@ from pyflink.common.serialization import ByteArraySchema
 from pyflink.datastream.connectors.kafka import (
     KafkaSource,
     KafkaOffsetsInitializer,
-    # KafkaRecordDeserializationSchema,
 )
 from pyflink.common.watermark_strategy import WatermarkStrategy
 from pyflink.datastream import StreamExecutionEnvironment
@@ -21,7 +20,6 @@ from pyflink.datastream.functions import (
 
 from pyflink.datastream.state import ValueStateDescriptor 
 from pyflink.datastream.window import TumblingEventTimeWindows
-# from pyflink.datastream.window import TumblingProcessingTimeWindows
 from pyflink.table import StreamTableEnvironment, EnvironmentSettings
 from pyflink.common.watermark_strategy import TimestampAssigner
 
@@ -242,14 +240,6 @@ def main():
             ])
         )
     )
-
-    # trip_stop_signals = trip_stop_signals.assign_timestamps_and_watermarks(
-    #     WatermarkStrategy
-    #         .for_monotonous_timestamps()
-    #         .with_timestamp_assigner(
-    #             lambda event, ts: event[3] * 1000   # feed_timestamp → milliseconds
-    #         )
-    # )
 
     trip_stop_signals = trip_stop_signals.assign_timestamps_and_watermarks(
         WatermarkStrategy
