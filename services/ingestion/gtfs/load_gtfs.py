@@ -1,3 +1,5 @@
+# Loads downloaded GTFS static zip files into the raw Postgres schema.
+
 import os
 import zipfile
 import pandas as pd

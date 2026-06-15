@@ -1,6 +1,5 @@
--- high avg - frequent - reliable
--- low min - long gaps - risky
--- high peak vs low min - unstable service
+-- Summarizes hourly route frequency into average, peak, and minimum service levels.
+
 select
     route_id,
     avg(trips_per_hour) as avg_trips_per_hour,

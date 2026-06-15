@@ -1,3 +1,5 @@
+-- Cleans GTFS transfer rules between stops, platforms, routes, and trips.
+
 {{ 
   config(
     materialized='table',

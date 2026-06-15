@@ -1,3 +1,5 @@
+-- Cleans GTFS stops while preserving station/platform hierarchy fields.
+
 select
     stop_id,
     stop_name,

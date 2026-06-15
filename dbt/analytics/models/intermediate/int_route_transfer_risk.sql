@@ -1,3 +1,5 @@
+-- Aggregates platform-level transfer risk into a route-level transfer risk signal.
+
 {{ config(materialized='table') }}
 
 select

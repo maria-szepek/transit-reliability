@@ -1,3 +1,5 @@
+# Streamlit UI for route search and lightweight static/realtime analytics views.
+
 import streamlit as st
 import requests
 import pandas as pd
@@ -22,27 +24,6 @@ st.title("Transit Reliability System")
 tab1, tab2 = st.tabs(["Route Planner", "Analytics"])
 
 # TAB 1 ROUTING APPLICATION
-
-# with tab1:
-
-#     st.header("Route Planner")
-
-#     origin = st.text_input("From")
-#     destination = st.text_input("To")
-
-#     if st.button("Search"):
-#         response = requests.get(
-#             "http://api:8000/routes/reliable",
-#             params={
-#                 "from_place": origin,
-#                 "to_place": destination
-#             }
-#         )
-
-#         routes = response.json()
-
-#         for r in routes:
-#             st.write(r)
 
 with tab1:
     st.header("Route Planner")

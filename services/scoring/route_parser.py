@@ -1,9 +1,0 @@
-def extract_route_ids(itinerary):
-    route_ids = []
-
-    for leg in itinerary["legs"]:
-        if "routeId" in leg:
-            route = leg["routeId"].split(":")[-1]
-            route_ids.append(route)
-
-    return route_ids

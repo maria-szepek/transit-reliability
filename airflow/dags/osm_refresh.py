@@ -1,3 +1,5 @@
+# Airflow DAG that refreshes the local OSM extract used by OpenTripPlanner.
+
 from __future__ import annotations
 
 from datetime import datetime

@@ -5,7 +5,15 @@ It combines OpenTripPlanner routing, GTFS static transit data, and dbt-based rel
 
 The system is designed as a data engineering–focused architecture rather than a user-facing application.
 
-## Project Scope
+# Terminology
+
+Route: A transit service or line, such as the A, Q, or N train. A route is a service pattern that operates repeatedly throughout the day.
+Trip: A single scheduled run of a route. For example, the A train departing at 8:05 AM and the A train departing at 8:15 AM are two different trips on the same route.
+Itinerary: A journey returned by OpenTripPlanner from an origin to a destination. An itinerary may contain one or more legs.
+Leg: One segment of an itinerary on a specific route. For example, an itinerary may consist of an A train leg followed by a Q train leg.
+Stop: //TODO: what that is? 
+
+## Project Scope  
 
 The goal is to evaluate transit routes not only by duration, but also by reliability proxies, including:
 
@@ -304,3 +312,17 @@ Planned improvements:
 ## Status
 
 Reliability modeling, realtime ingestion, Airflow orchestration, and the API/UI prototype are implemented for local development. Cloud deployment and production hardening remain incomplete.
+
+
+
+
+# LIMITATIONS FOR THE PROJECT: 
+
+- description of the raw data, and all the models in dbt project should be improved (i only have everything in my head for now) 
+
+
+
+# improvements for variability analysis: 
+
+- stddev for the travel times on each leg (between consecutive stops)
+- take into consideration time of day bucketing for the metrics 

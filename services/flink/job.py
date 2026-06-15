@@ -1,89 +1,153 @@
+# Flink job for GTFS-Realtime trip updates.
+#
+# The job reads raw protobuf messages from Kafka, extracts predicted arrival
+# times, measures how much those predictions change between feed updates, and
+# writes aggregated prediction-stability metrics to Postgres.
+#
+# Important: this currently measures prediction drift, not schedule delay.
+# A route can have high drift when realtime predictions are unstable, even if
+# the vehicle is not necessarily late compared with the static GTFS schedule.
+
 import math
+import os
+from contextlib import closing
 from datetime import datetime, timezone
 
 import psycopg2
 from google.transit import gtfs_realtime_pb2
-
-from pyflink.common import Types, Time
+from pyflink.common import Time, Types
 from pyflink.common.serialization import ByteArraySchema
-from pyflink.datastream.connectors.kafka import (
-    KafkaSource,
-    KafkaOffsetsInitializer,
-)
-from pyflink.common.watermark_strategy import WatermarkStrategy
+from pyflink.common.watermark_strategy import TimestampAssigner, WatermarkStrategy
 from pyflink.datastream import StreamExecutionEnvironment
+from pyflink.datastream.connectors.kafka import KafkaOffsetsInitializer, KafkaSource
 from pyflink.datastream.functions import (
     KeyedProcessFunction,
     ProcessWindowFunction,
     RuntimeContext,
 )
-
-from pyflink.datastream.state import ValueStateDescriptor 
+from pyflink.datastream.state import ValueStateDescriptor
 from pyflink.datastream.window import TumblingEventTimeWindows
-from pyflink.table import StreamTableEnvironment, EnvironmentSettings
-from pyflink.common.watermark_strategy import TimestampAssigner
+from pyflink.table import EnvironmentSettings, StreamTableEnvironment
 
 
-POSTGRES_HOST = "postgres"
-POSTGRES_DB = "transit"
-POSTGRES_USER = "transit"
-POSTGRES_PASSWORD = "transit"
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "postgres")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "transit")
+POSTGRES_USER = os.getenv("POSTGRES_USER", "transit")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "transit")
 
-KAFKA_BOOTSTRAP = "kafka:9092"
-TOPIC = "gtfs.trip_updates"
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
+KAFKA_TOPIC = os.getenv("GTFS_REALTIME_TOPIC", "gtfs.trip_updates")
+KAFKA_GROUP_ID = os.getenv("FLINK_KAFKA_GROUP_ID", "flink-gtfs-reliability")
+
+WINDOW_MINUTES = int(os.getenv("REALTIME_RELIABILITY_WINDOW_MINUTES", "2"))
+
+# PyFlink tuple rows are positional. These constants make the row access below
+# readable without introducing custom serialization classes.
+TRIP_ID = 0
+ROUTE_ID = 1
+STOP_ID = 2
+FEED_TIMESTAMP = 3
+PREDICTION_DRIFT = 6
+
+
+TRIP_UPDATE_EVENT_TYPE = Types.TUPLE([
+    Types.STRING(),  # trip_id
+    Types.STRING(),  # route_id
+    Types.STRING(),  # stop_id
+    Types.LONG(),    # arrival_time
+    Types.LONG(),    # feed_timestamp
+])
+
+PREDICTION_DRIFT_SIGNAL_TYPE = Types.TUPLE([
+    Types.STRING(),  # trip_id
+    Types.STRING(),  # route_id
+    Types.STRING(),  # stop_id
+    Types.LONG(),    # feed_timestamp
+    Types.LONG(),    # arrival_time
+    Types.LONG(),    # previous_arrival_time
+    Types.LONG(),    # prediction_drift_seconds
+])
+
+STOP_RELIABILITY_TYPE = Types.TUPLE([
+    Types.STRING(),         # route_id
+    Types.STRING(),         # stop_id
+    Types.SQL_TIMESTAMP(),  # window_start
+    Types.SQL_TIMESTAMP(),  # window_end
+    Types.DOUBLE(),         # avg_abs_prediction_drift_seconds
+    Types.DOUBLE(),         # stddev_prediction_drift_seconds
+    Types.LONG(),           # update_count
+    Types.LONG(),           # trip_count
+])
+
+ROUTE_RELIABILITY_TYPE = Types.TUPLE([
+    Types.STRING(),         # route_id
+    Types.SQL_TIMESTAMP(),  # window_start
+    Types.SQL_TIMESTAMP(),  # window_end
+    Types.DOUBLE(),         # avg_abs_prediction_drift_seconds
+    Types.DOUBLE(),         # stddev_prediction_drift_seconds
+    Types.LONG(),           # update_count
+    Types.LONG(),           # trip_count
+    Types.LONG(),           # stop_count
+])
+
+
+def postgres_jdbc_url() -> str:
+    return f"jdbc:postgresql://{POSTGRES_HOST}:5432/{POSTGRES_DB}"
 
 
 def ensure_tables() -> None:
-    conn = psycopg2.connect(
-        host=POSTGRES_HOST,
-        database=POSTGRES_DB,
-        user=POSTGRES_USER,
-        password=POSTGRES_PASSWORD,
-    )
-    conn.autocommit = True
-    cur = conn.cursor()
+    """Create the small serving tables used by the API and UI."""
+    with closing(
+        psycopg2.connect(
+            host=POSTGRES_HOST,
+            database=POSTGRES_DB,
+            user=POSTGRES_USER,
+            password=POSTGRES_PASSWORD,
+        )
+    ) as conn:
+        conn.autocommit = True
 
-    cur.execute("CREATE SCHEMA IF NOT EXISTS analytics;")
+        with conn.cursor() as cursor:
+            cursor.execute("CREATE SCHEMA IF NOT EXISTS analytics;")
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS analytics.realtime_trip_stop_signals (
-            trip_id TEXT,
-            route_id TEXT,
-            stop_id TEXT,
-            feed_timestamp BIGINT,
-            arrival_time BIGINT,
-            previous_arrival_time BIGINT,
-            prediction_drift_seconds BIGINT,
-            ingestion_time TIMESTAMP DEFAULT NOW()
-        );
-    """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS analytics.realtime_stop_reliability (
+                    route_id TEXT,
+                    stop_id TEXT,
+                    window_start TIMESTAMP,
+                    window_end TIMESTAMP,
+                    avg_abs_prediction_drift_seconds DOUBLE PRECISION,
+                    stddev_prediction_drift_seconds DOUBLE PRECISION,
+                    update_count BIGINT,
+                    trip_count BIGINT,
+                    ingestion_time TIMESTAMP DEFAULT NOW()
+                );
+            """)
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS analytics.realtime_stop_reliability (
-            route_id TEXT,
-            stop_id TEXT,
-            window_start TIMESTAMP,
-            window_end TIMESTAMP,
-            avg_abs_prediction_drift_seconds DOUBLE PRECISION,
-            stddev_prediction_drift_seconds DOUBLE PRECISION,
-            update_count BIGINT,
-            trip_count BIGINT,
-            ingestion_time TIMESTAMP DEFAULT NOW()
-        );
-    """)
-
-    cur.close()
-    conn.close()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS analytics.realtime_route_reliability (
+                    route_id TEXT,
+                    window_start TIMESTAMP,
+                    window_end TIMESTAMP,
+                    avg_abs_prediction_drift_seconds DOUBLE PRECISION,
+                    stddev_prediction_drift_seconds DOUBLE PRECISION,
+                    update_count BIGINT,
+                    trip_count BIGINT,
+                    stop_count BIGINT,
+                    ingestion_time TIMESTAMP DEFAULT NOW(),
+                    PRIMARY KEY (route_id, window_start, window_end)
+                );
+            """)
 
 
-def decode_gtfs(message_bytes):
+def decode_trip_update_arrivals(message_bytes):
+    """Extract one arrival prediction row per trip/stop from a GTFS-RT message."""
     if isinstance(message_bytes, str):
         message_bytes = message_bytes.encode("latin1")
 
     feed = gtfs_realtime_pb2.FeedMessage()
     feed.ParseFromString(message_bytes)
-
-    feed_ts = int(feed.header.timestamp)
+    feed_timestamp = int(feed.header.timestamp)
 
     for entity in feed.entity:
         if not entity.HasField("trip_update"):
@@ -97,81 +161,89 @@ def decode_gtfs(message_bytes):
             continue
 
         for stop_update in entity.trip_update.stop_time_update:
-            if not stop_update.stop_id:
+            # We only use arrival.time here. GTFS-RT may also contain
+            # arrival.delay, but that field is optional and needs separate
+            # feed validation before we base scoring on it.
+            if not stop_update.stop_id or not stop_update.HasField("arrival"):
                 continue
-
-            if not stop_update.HasField("arrival"):
-                continue
-
-            arrival_time = int(stop_update.arrival.time)
-            stop_id = stop_update.stop_id
 
             yield (
                 trip_id,
                 route_id,
-                stop_id,
-                arrival_time,
-                feed_ts,
+                stop_update.stop_id,
+                int(stop_update.arrival.time),
+                feed_timestamp,
             )
 
 
-class DriftFunction(KeyedProcessFunction):
+def window_bounds(context):
+    """Convert Flink window timestamps from milliseconds to naive UTC timestamps."""
+    window_start = datetime.fromtimestamp(
+        context.window().start / 1000,
+        tz=timezone.utc,
+    ).replace(tzinfo=None)
 
-    from pyflink.datastream.state import ValueStateDescriptor
+    window_end = datetime.fromtimestamp(
+        context.window().end / 1000,
+        tz=timezone.utc,
+    ).replace(tzinfo=None)
+
+    return window_start, window_end
+
+
+def prediction_drift_summary(rows):
+    """Calculate average and spread of absolute prediction changes."""
+    drifts = [abs(row[PREDICTION_DRIFT]) for row in rows]
+    update_count = len(rows)
+
+    if not update_count:
+        return 0.0, 0.0, 0
+
+    avg_abs_drift = float(sum(drifts) / update_count)
+
+    if update_count == 1:
+        return avg_abs_drift, 0.0, update_count
+
+    variance = sum((drift - avg_abs_drift) ** 2 for drift in drifts) / update_count
+    return avg_abs_drift, float(math.sqrt(variance)), update_count
+
+
+class PredictionDriftFunction(KeyedProcessFunction):
+    """Measures prediction changes for each trip/stop across feed updates."""
 
     def open(self, runtime_context: RuntimeContext):
-        descriptor = ValueStateDescriptor("last_arrival", Types.LONG())
-        self.last_arrival = runtime_context.get_state(descriptor)
+        # State is keyed by (trip_id, stop_id). For each key we remember the
+        # previous predicted arrival time and compare the next update to it.
+        descriptor = ValueStateDescriptor("last_arrival_time", Types.LONG())
+        self.last_arrival_time = runtime_context.get_state(descriptor)
 
     def process_element(self, value, ctx):
         trip_id, route_id, stop_id, arrival_time, feed_timestamp = value
+        previous_arrival_time = self.last_arrival_time.value()
 
-        previous_arrival = self.last_arrival.value()
-
-        if previous_arrival is not None:
-            prediction_drift = int(arrival_time - previous_arrival)
-
+        if previous_arrival_time is not None:
             yield (
                 trip_id,
                 route_id,
                 stop_id,
                 int(feed_timestamp),
                 int(arrival_time),
-                int(previous_arrival),
-                int(prediction_drift),
+                int(previous_arrival_time),
+                int(arrival_time - previous_arrival_time),
             )
 
-        self.last_arrival.update(arrival_time)
+        self.last_arrival_time.update(arrival_time)
 
 
 class StopReliabilityWindow(ProcessWindowFunction):
+    """Aggregates prediction stability per route/stop/window."""
 
     def process(self, key, context, elements):
         route_id, stop_id = key
         rows = list(elements)
-
-        drifts = [abs(r[6]) for r in rows]
-        update_count = len(rows)
-        trip_count = len({r[0] for r in rows})
-
-        avg_abs_drift = float(sum(drifts) / update_count) if update_count else 0.0
-
-        if update_count > 1:
-            mean = avg_abs_drift
-            variance = sum((d - mean) ** 2 for d in drifts) / update_count
-            stddev = float(math.sqrt(variance))
-        else:
-            stddev = 0.0
-
-        window_start = datetime.fromtimestamp(
-            context.window().start / 1000,
-            tz=timezone.utc,
-        ).replace(tzinfo=None)
-
-        window_end = datetime.fromtimestamp(
-            context.window().end / 1000,
-            tz=timezone.utc,
-        ).replace(tzinfo=None)
+        avg_abs_drift, stddev_drift, update_count = prediction_drift_summary(rows)
+        window_start, window_end = window_bounds(context)
+        trip_count = len({row[TRIP_ID] for row in rows})
 
         yield (
             route_id,
@@ -179,119 +251,117 @@ class StopReliabilityWindow(ProcessWindowFunction):
             window_start,
             window_end,
             avg_abs_drift,
-            stddev,
+            stddev_drift,
             int(update_count),
             int(trip_count),
         )
 
+
+class RouteReliabilityWindow(ProcessWindowFunction):
+    """Aggregates prediction stability per route/window for API scoring."""
+
+    def process(self, key, context, elements):
+        route_id = key
+        rows = list(elements)
+        avg_abs_drift, stddev_drift, update_count = prediction_drift_summary(rows)
+        window_start, window_end = window_bounds(context)
+        trip_count = len({row[TRIP_ID] for row in rows})
+        stop_count = len({row[STOP_ID] for row in rows})
+
+        yield (
+            route_id,
+            window_start,
+            window_end,
+            avg_abs_drift,
+            stddev_drift,
+            int(update_count),
+            int(trip_count),
+            int(stop_count),
+        )
+
+
 class FeedTimestampAssigner(TimestampAssigner):
-
     def extract_timestamp(self, value, record_timestamp):
-        return value[3] * 1000   # feed_timestamp → milliseconds
+        # Flink event time is in milliseconds. GTFS-RT feed timestamps are in
+        # Unix seconds, so multiply by 1000.
+        return value[FEED_TIMESTAMP] * 1000
 
 
-def main():
-    ensure_tables()
-
-    env = StreamExecutionEnvironment.get_execution_environment()
-    env.set_parallelism(1)
-
-    settings = EnvironmentSettings.new_instance().in_streaming_mode().build()
-    t_env = StreamTableEnvironment.create(env, environment_settings=settings)
-
-    source = KafkaSource.builder() \
-        .set_bootstrap_servers(KAFKA_BOOTSTRAP) \
-        .set_topics(TOPIC) \
-        .set_group_id("flink-gtfs-reliability") \
-        .set_starting_offsets(KafkaOffsetsInitializer.earliest()) \
-        .set_value_only_deserializer(ByteArraySchema()) \
+def create_kafka_source():
+    """Read raw GTFS-Realtime protobuf payloads from Kafka."""
+    return (
+        KafkaSource.builder()
+        .set_bootstrap_servers(KAFKA_BOOTSTRAP)
+        .set_topics(KAFKA_TOPIC)
+        .set_group_id(KAFKA_GROUP_ID)
+        .set_starting_offsets(KafkaOffsetsInitializer.earliest())
+        .set_value_only_deserializer(ByteArraySchema())
         .build()
+    )
 
-    stream = env.from_source(
-        source,
+
+def create_prediction_drift_signals(env):
+    """Build the stream of per-trip/per-stop prediction drift events."""
+    raw_messages = env.from_source(
+        create_kafka_source(),
         WatermarkStrategy.for_monotonous_timestamps(),
         "gtfs-trip-updates",
     )
 
-    flat_events = stream.flat_map(
-        decode_gtfs,
-        output_type=Types.TUPLE([
-            Types.STRING(),
-            Types.STRING(),
-            Types.STRING(),
-            Types.LONG(),
-            Types.LONG(),
-        ])
+    trip_update_arrivals = raw_messages.flat_map(
+        decode_trip_update_arrivals,
+        output_type=TRIP_UPDATE_EVENT_TYPE,
     )
 
-    trip_stop_signals = (
-        flat_events
-        .key_by(lambda x: (x[0], x[2]))
+    prediction_drift_signals = (
+        trip_update_arrivals
+        .key_by(lambda row: (row[TRIP_ID], row[STOP_ID]))
         .process(
-            DriftFunction(),
-            output_type=Types.TUPLE([
-                Types.STRING(),
-                Types.STRING(),
-                Types.STRING(),
-                Types.LONG(),
-                Types.LONG(),
-                Types.LONG(),
-                Types.LONG(),
-            ])
+            PredictionDriftFunction(),
+            output_type=PREDICTION_DRIFT_SIGNAL_TYPE,
         )
     )
 
-    trip_stop_signals = trip_stop_signals.assign_timestamps_and_watermarks(
+    # Windowing should use the feed creation time, not processing time, so a
+    # delayed Kafka message lands in the window that matches the GTFS-RT feed.
+    return prediction_drift_signals.assign_timestamps_and_watermarks(
         WatermarkStrategy
-            .for_monotonous_timestamps()
-            .with_timestamp_assigner(FeedTimestampAssigner())
+        .for_monotonous_timestamps()
+        .with_timestamp_assigner(FeedTimestampAssigner())
     )
 
-    stop_reliability = (
-        trip_stop_signals
-        .key_by(lambda x: (x[1], x[2]))
-        .window(TumblingEventTimeWindows.of(Time.minutes(2)))
+
+def create_stop_reliability(prediction_drift_signals):
+    """Aggregate drift by route and stop for dashboard/debug analysis."""
+    return (
+        prediction_drift_signals
+        .key_by(lambda row: (row[ROUTE_ID], row[STOP_ID]))
+        .window(TumblingEventTimeWindows.of(Time.minutes(WINDOW_MINUTES)))
         .process(
             StopReliabilityWindow(),
-            output_type=Types.TUPLE([
-                Types.STRING(),
-                Types.STRING(),
-                Types.SQL_TIMESTAMP(),
-                Types.SQL_TIMESTAMP(),
-                Types.DOUBLE(),
-                Types.DOUBLE(),
-                Types.LONG(),
-                Types.LONG(),
-            ])
+            output_type=STOP_RELIABILITY_TYPE,
         )
     )
 
-    trip_table = t_env.from_data_stream(trip_stop_signals)
-    stop_table = t_env.from_data_stream(stop_reliability)
 
-    t_env.create_temporary_view("trip_stop_signals", trip_table)
-    t_env.create_temporary_view("stop_reliability", stop_table)
-
-    t_env.execute_sql("""
-    CREATE TABLE trip_stop_sink (
-        trip_id STRING,
-        route_id STRING,
-        stop_id STRING,
-        feed_timestamp BIGINT,
-        arrival_time BIGINT,
-        previous_arrival_time BIGINT,
-        prediction_drift_seconds BIGINT
-    ) WITH (
-        'connector' = 'jdbc',
-        'url' = 'jdbc:postgresql://postgres:5432/transit',
-        'table-name' = 'analytics.realtime_trip_stop_signals',
-        'username' = 'transit',
-        'password' = 'transit',
-        'driver' = 'org.postgresql.Driver'
+def create_route_reliability(prediction_drift_signals):
+    """Aggregate drift by route for API scoring."""
+    return (
+        prediction_drift_signals
+        .key_by(lambda row: row[ROUTE_ID])
+        .window(TumblingEventTimeWindows.of(Time.minutes(WINDOW_MINUTES)))
+        .process(
+            RouteReliabilityWindow(),
+            output_type=ROUTE_RELIABILITY_TYPE,
+        )
     )
-    """)
 
-    t_env.execute_sql("""
+
+def register_postgres_sinks(t_env):
+    """Register JDBC sinks that write Flink table results into Postgres."""
+    jdbc_url = postgres_jdbc_url()
+
+    t_env.execute_sql(f"""
     CREATE TABLE stop_reliability_sink (
         route_id STRING,
         stop_id STRING,
@@ -303,27 +373,81 @@ def main():
         trip_count BIGINT
     ) WITH (
         'connector' = 'jdbc',
-        'url' = 'jdbc:postgresql://postgres:5432/transit',
+        'url' = '{jdbc_url}',
         'table-name' = 'analytics.realtime_stop_reliability',
-        'username' = 'transit',
-        'password' = 'transit',
+        'username' = '{POSTGRES_USER}',
+        'password' = '{POSTGRES_PASSWORD}',
         'driver' = 'org.postgresql.Driver'
     )
     """)
 
-    statement_set = t_env.create_statement_set()
-
-    statement_set.add_insert_sql("""
-        INSERT INTO trip_stop_sink
-        SELECT * FROM trip_stop_signals
+    t_env.execute_sql(f"""
+    CREATE TABLE route_reliability_sink (
+        route_id STRING,
+        window_start TIMESTAMP(3),
+        window_end TIMESTAMP(3),
+        avg_abs_prediction_drift_seconds DOUBLE,
+        stddev_prediction_drift_seconds DOUBLE,
+        update_count BIGINT,
+        trip_count BIGINT,
+        stop_count BIGINT,
+        PRIMARY KEY (route_id, window_start, window_end) NOT ENFORCED
+    ) WITH (
+        'connector' = 'jdbc',
+        'url' = '{jdbc_url}',
+        'table-name' = 'analytics.realtime_route_reliability',
+        'username' = '{POSTGRES_USER}',
+        'password' = '{POSTGRES_PASSWORD}',
+        'driver' = 'org.postgresql.Driver'
+    )
     """)
+
+
+def submit_sinks(t_env):
+    """Start both streaming inserts as one Flink statement set."""
+    statement_set = t_env.create_statement_set()
 
     statement_set.add_insert_sql("""
         INSERT INTO stop_reliability_sink
         SELECT * FROM stop_reliability
     """)
 
+    statement_set.add_insert_sql("""
+        INSERT INTO route_reliability_sink
+        SELECT * FROM route_reliability
+    """)
+
     statement_set.execute()
+
+
+def main():
+    ensure_tables()
+
+    env = StreamExecutionEnvironment.get_execution_environment()
+    # Keep local execution predictable. Higher parallelism needs checkpointing
+    # and stronger ordering assumptions around keyed state and JDBC writes.
+    env.set_parallelism(1)
+
+    settings = EnvironmentSettings.new_instance().in_streaming_mode().build()
+    t_env = StreamTableEnvironment.create(env, environment_settings=settings)
+
+    prediction_drift_signals = create_prediction_drift_signals(env)
+    stop_reliability = create_stop_reliability(prediction_drift_signals)
+    route_reliability = create_route_reliability(prediction_drift_signals)
+
+    # Temporary views are the bridge from DataStream transformations to SQL
+    # INSERT statements into JDBC sinks.
+    t_env.create_temporary_view(
+        "stop_reliability",
+        t_env.from_data_stream(stop_reliability),
+    )
+    t_env.create_temporary_view(
+        "route_reliability",
+        t_env.from_data_stream(route_reliability),
+    )
+
+    register_postgres_sinks(t_env)
+    submit_sinks(t_env)
 
 
 if __name__ == "__main__":

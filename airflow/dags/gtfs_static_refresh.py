@@ -1,3 +1,5 @@
+# Airflow DAG that downloads GTFS static feeds, loads them to Postgres, runs dbt, and rebuilds OTP.
+
 from __future__ import annotations
 
 import shutil

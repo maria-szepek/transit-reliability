@@ -1,3 +1,5 @@
+-- Cleans GTFS trips and keeps the route/service identifiers used by reliability models.
+
 select
     route_id,
     service_id,

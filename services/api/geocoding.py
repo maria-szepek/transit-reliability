@@ -1,3 +1,5 @@
+# Geocoding helper used by the API to turn user-entered place names into coordinates.
+
 import requests
 
 

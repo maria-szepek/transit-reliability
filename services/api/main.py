@@ -1,11 +1,13 @@
+# FastAPI service exposing route planning, health checks, and database readiness endpoints.
+
 import os
 from contextlib import closing
 
 import psycopg2
 import requests
 from fastapi import FastAPI, HTTPException
+from services.api.response_formatter import build_route_response
 from services.scoring.scorer import score_routes
-from services.scoring.itinerary_formatter import format_itinerary
 from services.scoring.otp_client import OTP_URL
 
 from services.api.geocoding import geocode
@@ -108,44 +110,4 @@ def reliable_routes(
             detail="Could not score routes",
         ) from exc
 
-    if not results:
-        return []
-
-    response = []
-    seen = set()
-    rank = 1
-
-    fastest_duration = min(
-        round(r["itinerary"]["duration"] / 60)
-        for r in results
-    )
-
-    for r in results:
-        legs = format_itinerary(r["itinerary"])
-
-        key = tuple(
-            (leg["line"], leg["from"], leg["to"])
-            for leg in legs
-        )
-
-        if key in seen:
-            continue
-
-        seen.add(key)
-
-        duration = round(r["itinerary"]["duration"] / 60)
-
-        response.append({
-            "rank": rank,
-            "recommended": rank == 1,
-            "fastest": duration == fastest_duration,
-            "duration_min": duration,
-            "transfers": r["itinerary"]["transfers"],
-            "reliability_score": round(float(r["score"]), 2),
-            "explanation": r.get("explanation"),
-            "legs": legs
-        })
-
-        rank += 1
-
-    return response
+    return build_route_response(results)
