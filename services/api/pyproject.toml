@@ -2,7 +2,7 @@
 name = "transit-reliability-api"
 version = "0.1.0"
 description = "FastAPI service for transit route reliability scoring"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 dependencies = [
     "fastapi>=0.135.2",
     "psycopg2-binary>=2.9.11",

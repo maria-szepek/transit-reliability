@@ -3,7 +3,7 @@ name = "transit-reliability"
 version = "0.1.0"
 description = "Local transit reliability data platform and routing prototype"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 dependencies = []
 
 [dependency-groups]

@@ -93,8 +93,7 @@ resource "google_compute_firewall" "allow_http" {
     ]
   }
 
-  # Allow access from anywhere
-  source_ranges = ["0.0.0.0/0"]
+  source_ranges = var.allowed_ingress_cidr_blocks
 }
 
 ###############################################

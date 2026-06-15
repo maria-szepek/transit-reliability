@@ -212,7 +212,7 @@ docker compose up -d flink-jobmanager flink-taskmanager
 * why are we giving container_names: it will be confusing no?
 
 * should we consider to use redpanda instead of kafka? 
-* should we consider to switch to Kafka KRaft (no ZooKeeper)
+* should we consider to switch to Kafka KRaft (no ZooKeeper)   -> DONE NOW!
 
 * restart: unless-stopped / restart: on-failure.. what are the best policies for all the containers? 
 

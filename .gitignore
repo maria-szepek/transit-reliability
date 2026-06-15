@@ -30,6 +30,9 @@ Thumbs.db
 # Environment variables
 #################################
 .env
+.user.yml
+dbt/.user.yml
+dbt/analytics/.user.yml
 
 #################################
 # Logs

@@ -11,7 +11,7 @@ Route: A transit service or line, such as the A, Q, or N train. A route is a ser
 Trip: A single scheduled run of a route. For example, the A train departing at 8:05 AM and the A train departing at 8:15 AM are two different trips on the same route.
 Itinerary: A journey returned by OpenTripPlanner from an origin to a destination. An itinerary may contain one or more legs.
 Leg: One segment of an itinerary on a specific route. For example, an itinerary may consist of an A train leg followed by a Q train leg.
-Stop: //TODO: what that is? 
+Stop: A physical place where passengers board or leave a vehicle. In GTFS, stops may represent stations, platforms, or boarding locations depending on the feed.
 
 ## Project Scope  
 
@@ -108,9 +108,19 @@ POSTGRES_PASSWORD=transit
 POSTGRES_DB=transit
 
 OTP_URL=http://otp:8080/otp/routers/default/plan
+API_URL=http://api:8000/routes/reliable
 
 AIRFLOW_UID=50000
 DOCKER_GID=999
+
+PGADMIN_DEFAULT_EMAIL=admin@admin.com
+PGADMIN_DEFAULT_PASSWORD=<generate-a-local-password>
+
+AIRFLOW_POSTGRES_PASSWORD=<generate-a-local-password>
+AIRFLOW__CORE__FERNET_KEY=<generate-with-airflow-fernet-key-or-python-cryptography>
+AIRFLOW__API_AUTH__JWT_SECRET=<generate-a-random-secret>
+_AIRFLOW_WWW_USER_USERNAME=airflow
+_AIRFLOW_WWW_USER_PASSWORD=<generate-a-local-password>
 ```
 
 ### 3. Start the transit platform

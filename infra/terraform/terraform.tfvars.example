@@ -1,0 +1,6 @@
+project_id = "your-gcp-project-id"
+region     = "us-central1"
+zone       = "us-central1-b"
+
+# Replace with your public IP range before applying.
+allowed_ingress_cidr_blocks = ["203.0.113.10/32"]

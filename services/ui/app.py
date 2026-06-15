@@ -1,11 +1,17 @@
 # Streamlit UI for route search and lightweight static/realtime analytics views.
 
+import os
+
 import streamlit as st
 import requests
 import pandas as pd
 import psycopg2
 
-API_URL = "http://localhost:8000/routes/reliable"
+API_URL = os.getenv("API_URL", "http://localhost:8000/routes/reliable")
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "transit")
+POSTGRES_USER = os.getenv("POSTGRES_USER", "transit")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "transit")
 
 
 # STRUCTURE 
@@ -89,10 +95,10 @@ with tab2:
         st.subheader("Trips per Route (Static GTFS)")
 
         conn = psycopg2.connect(
-            host="localhost",  # host="postgres",
-            database="transit",
-            user="transit",
-            password="transit"
+            host=POSTGRES_HOST,
+            database=POSTGRES_DB,
+            user=POSTGRES_USER,
+            password=POSTGRES_PASSWORD,
         )
 
         query = """

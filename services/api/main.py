@@ -1,5 +1,6 @@
 # FastAPI service exposing route planning, health checks, and database readiness endpoints.
 
+import logging
 import os
 from contextlib import closing
 
@@ -13,6 +14,7 @@ from services.scoring.otp_client import OTP_URL
 from services.api.geocoding import geocode
 
 app = FastAPI()
+logger = logging.getLogger(__name__)
 
 
 def resolve_place(place: str, label: str) -> tuple[float, float]:
@@ -105,6 +107,7 @@ def reliable_routes(
             detail="Could not retrieve routes from OpenTripPlanner",
         ) from exc
     except Exception as exc:
+        logger.exception("Route scoring failed")
         raise HTTPException(
             status_code=503,
             detail="Could not score routes",
