@@ -1,0 +1,22 @@
+int_route_headway has to be evaluated, how the model is built, if its well done, and how it can be aligned with other models for example its almost the same thing as route frequency but it suddeny measures stddev min i dont know what ... all the modeling should be smooth and reasonable also. 
+
+
+can int_transfer_risk be modeled more elegantly ? i just want to know if  a transfer is risky or not, maybe in this project where we apparently determining reliability route based for now, that can be somehow averaged or however we want to solve it, but this model here looks overly complicated. i dont like that. 
+
+
+int_route_scheduled_travel_time_variability has to be evaluated , what is it doing, why,  how the model is built and if its well done 
+
+i want to re-evaluate the purpose and use of int_time_reliability
+
+i feel like  split_part(st.arrival_time, ':', 1)::int * 3600 + .... and for departure_time as well, this is done very often across the models, should this not be prepared in staging or somewhere else? or how can we improve the project here with that? 
+
+
+
+
+
+
+we need to mention in the readme that we started with a logical approach to measure reliability route based , and that for this purpose there was a lot of route-averaging done that can be quite unprecise, but for now it is like that. 
+
+
+
+

@@ -15,4 +15,4 @@ dependencies = [
 transit-reliability-scoring = { workspace = true }
 
 [tool.setuptools]
-py-modules = ["main", "geocoding"]
+py-modules = ["geocoding", "main", "response_formatter"]

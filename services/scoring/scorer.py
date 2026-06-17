@@ -79,15 +79,15 @@ def get_realtime_route_risks(route_ids):
     results = {}
 
     for route_id, avg_prediction_drift, prediction_volatility, update_count, stop_count in rows:
-        drift_score = min(avg_prediction_drift / 300.0, 1.0)
-        volatility_score = min(prediction_volatility / 180.0, 1.0)
-        risk = 0.6 * drift_score + 0.4 * volatility_score
+        drift_score = min(avg_prediction_drift / 300.0, 1.0) # >= 300s considered max risk
+        volatility_score = min(prediction_volatility / 300.0, 1.0) # >= 300s considered max risk (180?)
+        risk = 0.5 * drift_score + 0.5 * volatility_score
 
         results[route_id] = {
             "risk": risk,
             "explanation": (
                 "unstable realtime predictions"
-                if risk > 0.6 and update_count > 0 and stop_count > 0
+                if risk > 0.5 and update_count > 0 and stop_count > 0
                 else None
             ),
         }
@@ -128,9 +128,12 @@ def score_routes(from_lat, from_lon, to_lat, to_lon):
             realtime_explanation = realtime_entry.get("explanation")
 
             if static_score is None:
-                static_score = 50.0
+                static_score = 0
+                explanations.append(
+                    f"{route_id}: no static data: assumed unreliable"
+                )
 
-            final_route_score = float(static_score) * (1 - 0.15 * float(realtime_risk))
+            final_route_score = float(static_score) * (1 - 0.20 * float(realtime_risk))
             route_final_scores.append(final_route_score)
 
             if static_explanation:

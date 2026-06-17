@@ -1,24 +1,10 @@
 -- Estimates scheduled transfer risk for platform-to-platform transfer opportunities.
 -- A transfer opportunity is modeled as arriving at one stop/platform and catching
 -- the next departure on another route within the same station/parent station.
+-- Transfers requiring more than 20 minutes of waiting are treated as not useful.
 {{ config(materialized='table') }}
 
-with events as (
-
-    select
-        t.route_id,
-        st.trip_id,
-        st.stop_id,
-        coalesce(nullif(s.parent_station, ''), st.stop_id) as station_id,
-        st.arrival_seconds,
-        st.departure_seconds
-    from {{ ref('stg_stop_times') }} st
-    join {{ ref('stg_trips') }} t using (trip_id)
-    left join {{ ref('stg_stops') }} s using (stop_id)
-
-),
-
-candidate_transfers as (
+with candidate_transfers as (
 
     select
         arriving.route_id as route_id,
@@ -42,12 +28,12 @@ candidate_transfers as (
                 departing.stop_id
             order by departing.departure_seconds
         ) as transfer_rank
-    from events arriving
-    join events departing
+    from {{ ref('int_transfer_events') }} arriving
+    join {{ ref('int_transfer_events') }} departing
         on arriving.station_id = departing.station_id
        and arriving.route_id != departing.route_id
        and departing.departure_seconds > arriving.arrival_seconds
-       and departing.departure_seconds - arriving.arrival_seconds <= 3600
+       and departing.departure_seconds - arriving.arrival_seconds <= 900 -- 1200
 
 ),
 
@@ -90,7 +76,7 @@ final as (
         transfer_type,
         buffer_minutes - required_minutes as slack_minutes
     from with_transfer_rules
-    where buffer_minutes between 0 and 60
+    where buffer_minutes between 0 and 20
 
 )
 

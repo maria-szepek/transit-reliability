@@ -19,6 +19,5 @@ members = [
     "services/scoring",
     "services/ingestion",
     "services/api",
-    "services/flink",
     "services/ui",
 ]

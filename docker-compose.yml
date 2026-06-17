@@ -1,8 +1,11 @@
 x-airflow-common:
   &airflow-common
+  image: transit-reliability-airflow:local
   build:
     context: ./airflow
     dockerfile: Dockerfile.airflow
+    provenance: false
+    sbom: false
   env_file:
     - .env
   group_add:
@@ -10,6 +13,7 @@ x-airflow-common:
   environment:
     &airflow-common-env
     AIRFLOW_UID: ${AIRFLOW_UID:-50000}
+    PYTHONUNBUFFERED: "1"
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_POSTGRES_PASSWORD}@airflow-postgres/airflow
@@ -105,9 +109,12 @@ services:
       "
 
   realtime-gtfs-producer:
+    image: transit-reliability-ingestion:local
     build:
       context: .
       dockerfile: services/ingestion/Dockerfile
+      provenance: false
+      sbom: false
     command: python -u -m realtime.gtfs_realtime_producer
     depends_on:
       init-kafka:
@@ -118,9 +125,12 @@ services:
 
 
   api:
+    image: transit-reliability-api:local
     build:
       context: .
       dockerfile: services/api/Dockerfile
+      provenance: false
+      sbom: false
     env_file:
       - .env
     depends_on:
@@ -155,9 +165,12 @@ services:
       --build --serve
 
   flink-jobmanager:
+    image: transit-reliability-flink:local
     build:
       context: .
       dockerfile: services/flink/Dockerfile.flink
+      provenance: false
+      sbom: false
     ports:
       - "8081:8081"
     volumes:
@@ -175,9 +188,12 @@ services:
       retries: 20
 
   flink-taskmanager:
+    image: transit-reliability-flink:local
     build:
       context: .
       dockerfile: services/flink/Dockerfile.flink
+      provenance: false
+      sbom: false
     volumes:
       - ./services/flink:/opt/flink/usrlib
     depends_on:
@@ -192,9 +208,12 @@ services:
         parallelism.default: 3
 
   flink-submit:
+    image: transit-reliability-flink:local
     build:
       context: .
       dockerfile: services/flink/Dockerfile.flink
+      provenance: false
+      sbom: false
     depends_on:
       flink-jobmanager:
         condition: service_healthy

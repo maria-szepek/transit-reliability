@@ -12,7 +12,6 @@ COPY dbt/pyproject.toml ./dbt/
 COPY services/api/pyproject.toml ./services/api/
 COPY services/scoring/pyproject.toml ./services/scoring/
 COPY services/ingestion/pyproject.toml ./services/ingestion/
-COPY services/flink/pyproject.toml ./services/flink/
 COPY services/ui/pyproject.toml ./services/ui/
 COPY services ./services
 

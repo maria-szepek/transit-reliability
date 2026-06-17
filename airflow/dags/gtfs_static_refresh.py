@@ -89,7 +89,7 @@ with DAG(
         task_id="ingest_gtfs",
         bash_command=(
             "cd /opt/project && "
-            "python services/ingestion/gtfs/load_gtfs.py"
+            "python -u services/ingestion/gtfs/load_gtfs.py"
         ),
     )
 

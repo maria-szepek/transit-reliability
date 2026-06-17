@@ -7,3 +7,6 @@ dependencies = [
     "psycopg2-binary>=2.9.11",
     "requests>=2.33.0",
 ]
+
+[tool.setuptools]
+py-modules = ["otp_client", "scorer"]

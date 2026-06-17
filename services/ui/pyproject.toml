@@ -9,3 +9,6 @@ dependencies = [
     "requests>=2.33.0",
     "streamlit>=1.56.0",
 ]
+
+[tool.setuptools]
+py-modules = ["app"]
