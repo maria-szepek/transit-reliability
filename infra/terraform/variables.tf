@@ -1,16 +1,4 @@
-###############################################
-# Variables
-# project_id is provided via terraform.tfvars
-# region and zone have defaults but can be changed
-###############################################
 variable "project_id" {
-  type = string
-}
-
-variable "region" {
-  default = "us-central1"
-}
-
-variable "zone" {
-  default = "us-central1-b"
+  description = "GCP project ID. The Makefile passes this from GCP_PROJECT_ID in .env."
+  type        = string
 }

@@ -1,17 +1,54 @@
+# Streamlit UI for route search and lightweight static/realtime analytics views.
+
+import os
+
 import streamlit as st
 import requests
 import pandas as pd
 import psycopg2
 
-API_URL = "http://localhost:8000/routes/reliable"
+API_URL = os.getenv("API_URL", "http://localhost:8000/routes/reliable")
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "transit")
+POSTGRES_USER = os.getenv("POSTGRES_USER", "transit")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "transit")
 
 
 # STRUCTURE 
 
 st.markdown("""
 <style>
+.route-planner {
+    max-width: 920px;
+}
+
+.route-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    margin: 1rem 0;
+    background: #ffffff;
+}
+
+.route-card h3 {
+    margin-top: 0;
+}
+
+.route-explanation {
+    color: #64748b;
+    font-size: 0.9rem;
+    margin: 0.5rem 0 0.8rem;
+}
+
+.route-leg {
+    margin: 0.25rem 0;
+}
+
 div[data-testid="stMetric"] {
-    text-align: center;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.65rem 0.75rem;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -23,43 +60,43 @@ tab1, tab2 = st.tabs(["Route Planner", "Analytics"])
 
 # TAB 1 ROUTING APPLICATION
 
-# with tab1:
-
-#     st.header("Route Planner")
-
-#     origin = st.text_input("From")
-#     destination = st.text_input("To")
-
-#     if st.button("Search"):
-#         response = requests.get(
-#             "http://api:8000/routes/reliable",
-#             params={
-#                 "from_place": origin,
-#                 "to_place": destination
-#             }
-#         )
-
-#         routes = response.json()
-
-#         for r in routes:
-#             st.write(r)
-
 with tab1:
+    st.markdown('<div class="route-planner">', unsafe_allow_html=True)
     st.header("Route Planner")
 
-    origin = st.text_input("From", "Times Square")
-    destination = st.text_input("To", "Central Park")
+    with st.form("route_search"):
+        origin = st.text_input("From", "Times Square")
+        destination = st.text_input("To", "Central Park")
+        submitted = st.form_submit_button("Search routes")
 
-    if st.button("Search routes"):
+    if submitted:
         response = requests.get(
             API_URL,
             params={
                 "from_place": origin,
                 "to_place": destination
-            }
+            },
+            timeout=60,
         )
 
+        if response.status_code != 200:
+            try:
+                detail = response.json().get("detail", response.text)
+            except requests.JSONDecodeError:
+                detail = response.text
+
+            st.error(f"Route search failed: {detail}")
+            st.stop()
+
         routes = response.json()
+
+        if not isinstance(routes, list):
+            st.error(f"Unexpected API response: {routes}")
+            st.stop()
+
+        if not routes:
+            st.info("No routes found for this search.")
+            st.stop()
 
         for r in routes:
             badge = []
@@ -70,9 +107,14 @@ with tab1:
 
             badge_text = " | ".join(badge)
 
-            st.subheader(f"Rank {r['rank']}  {badge_text}")
+            title = f"Rank {r['rank']}"
+            if badge_text:
+                title = f"{title} · {badge_text}"
 
-            col1, col2, col3 = st.columns(3)
+            st.markdown('<div class="route-card">', unsafe_allow_html=True)
+            st.markdown(f"### {title}")
+
+            col1, col2, col3, _ = st.columns([1, 1, 1.2, 1.8])
 
             col1.metric("Duration", f"{r['duration_min']} min")
             col2.metric("Transfers", r["transfers"])
@@ -82,17 +124,25 @@ with tab1:
             )
 
             if r["explanation"]:
-                st.caption(r["explanation"])
+                st.markdown(
+                    f'<div class="route-explanation">{r["explanation"]}</div>',
+                    unsafe_allow_html=True,
+                )
 
             st.markdown("**Route:**")
 
             for i, leg in enumerate(r["legs"]):
-                st.write(
-                    f"{i+1}. **{leg['line']}** "
-                    f"{leg['from']} → {leg['to']}"
+                st.markdown(
+                    '<div class="route-leg">'
+                    f'{i+1}. <strong>{leg["line"]}</strong> '
+                    f'{leg["from"]} → {leg["to"]}'
+                    '</div>',
+                    unsafe_allow_html=True,
                 )
 
-            st.divider()
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # TAB 2 ANALYTICS DASHBOARD WITH 2 TILES 
 
@@ -108,10 +158,10 @@ with tab2:
         st.subheader("Trips per Route (Static GTFS)")
 
         conn = psycopg2.connect(
-            host="localhost",  # host="postgres",
-            database="transit",
-            user="transit",
-            password="transit"
+            host=POSTGRES_HOST,
+            database=POSTGRES_DB,
+            user=POSTGRES_USER,
+            password=POSTGRES_PASSWORD,
         )
 
         query = """

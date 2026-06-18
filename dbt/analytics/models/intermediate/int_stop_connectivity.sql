@@ -1,11 +1,4 @@
--- how many routes serve each stop
-
--- This is core to original reliability idea:
-
--- "will I be stuck"
--- "how many alternatives nearby"
--- "how easy to reroute"
-
+-- Counts how many distinct routes serve each stop as a proxy for rerouting options.
 
 select
     st.stop_id,

@@ -1,10 +1,13 @@
 [project]
-name = "scoring"
+name = "transit-reliability-scoring"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.11"
+description = "Shared route parsing and reliability scoring logic"
+requires-python = ">=3.11,<3.14"
 dependencies = [
+    "google-cloud-bigquery>=3.38.0",
     "psycopg2-binary>=2.9.11",
     "requests>=2.33.0",
 ]
+
+[tool.setuptools]
+py-modules = ["otp_client", "scorer"]

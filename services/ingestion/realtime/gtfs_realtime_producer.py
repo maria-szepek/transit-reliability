@@ -1,3 +1,5 @@
+# Polls MTA GTFS-Realtime feeds and publishes raw protobuf payloads to Kafka.
+
 import os
 import time
 import requests

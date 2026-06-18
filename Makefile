@@ -1,19 +1,20 @@
-GCP_CREDENTIALS=$(PWD)/infra/keys/credentials.json
+include .env
+export
+
+export TF_VAR_project_id := $(GCP_PROJECT_ID)
 
 # --- Terraform infra ---
-deploy-infra:
-	GOOGLE_APPLICATION_CREDENTIALS=$(GCP_CREDENTIALS) \
-	TF_VAR_project_id=$(PROJECT_ID) \
+infra-init:
 	terraform -chdir=infra/terraform init
 
-	GOOGLE_APPLICATION_CREDENTIALS=$(GCP_CREDENTIALS) \
-	TF_VAR_project_id=$(PROJECT_ID) \
-	terraform -chdir=infra/terraform apply -auto-approve
+infra-plan:
+	terraform -chdir=infra/terraform plan
 
-destroy-infra:
-	GOOGLE_APPLICATION_CREDENTIALS=$(GCP_CREDENTIALS) \
-	TF_VAR_project_id=$(PROJECT_ID) \
-	terraform -chdir=infra/terraform destroy -auto-approve
+infra-apply:
+	terraform -chdir=infra/terraform apply
+
+infra-destroy:
+	terraform -chdir=infra/terraform destroy
 
 
 # --- Docker stack ---
@@ -25,4 +26,6 @@ deploy:
 
 
 # --- Main entry point ---
-deploy-cloud: deploy-infra deploy  # how to run: make deploy-cloud PROJECT_ID=my-project
+deploy-infra: infra-init infra-apply
+
+deploy-cloud: deploy-infra deploy

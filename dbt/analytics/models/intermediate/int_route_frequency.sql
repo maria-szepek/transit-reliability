@@ -1,30 +1,33 @@
--- "how often does each route run?"
+-- Counts scheduled trip starts per route and hour using each trip's first stop.
 
--- route_id | hour_of_day | trips_per_hour
+with first_stop_per_trip as (
 
--- This feeds:
+    select
+        trip_id,
+        min(stop_sequence) as first_stop_sequence
+    from {{ ref('stg_stop_times') }}
+    group by trip_id
 
--- reroute resilience
--- time-of-day reliability
--- transfer risk
+),
 
--- select
---     t.route_id,
---     extract(hour from st.departure_time) as hour_of_day,
---     count(*) as trips_per_hour
--- from {{ ref('stg_stop_times') }} st
--- join {{ ref('stg_trips') }} t
---     on st.trip_id = t.trip_id
--- group by 1,2
+trip_starts as (
+
+    select
+        t.route_id,
+        st.trip_id,
+        st.departure_hour
+    from {{ ref('stg_stop_times') }} st
+    join first_stop_per_trip first_stop
+        on st.trip_id = first_stop.trip_id
+       and st.stop_sequence = first_stop.first_stop_sequence
+    join {{ ref('stg_trips') }} t
+        on st.trip_id = t.trip_id
+
+)
 
 select
-    t.route_id,
-    -- (split_part(st.departure_time, ':', 1)::int % 24) as hour_of_day
-    split_part(st.departure_time, ':', 1)::int as hour_of_day,
+    route_id,
+    departure_hour as hour_of_day,
     count(*) as trips_per_hour
-from {{ ref('stg_stop_times') }} st
-join {{ ref('stg_trips') }} t
-    on st.trip_id = t.trip_id
-group by 1,2
-
--- TODO: (make_interval(hours := ...)) maybe? 
+from trip_starts
+group by 1, 2

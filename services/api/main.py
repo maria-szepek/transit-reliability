@@ -1,10 +1,81 @@
-from fastapi import FastAPI
+# FastAPI service exposing route planning, health checks, and database readiness endpoints.
+
+import logging
+import os
+from contextlib import closing
+
+import psycopg2
+import requests
+from fastapi import FastAPI, HTTPException
+from services.api.response_formatter import build_route_response
 from services.scoring.scorer import score_routes
-from services.scoring.itinerary_formatter import format_itinerary
+from services.scoring.otp_client import OTP_URL
 
 from services.api.geocoding import geocode
 
 app = FastAPI()
+logger = logging.getLogger(__name__)
+
+
+def resolve_place(place: str, label: str) -> tuple[float, float]:
+    try:
+        return geocode(place)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except requests.RequestException as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not geocode {label} location",
+        ) from exc
+
+
+def check_postgres() -> None:
+    with closing(psycopg2.connect(
+        host=os.getenv("POSTGRES_HOST", "localhost"),
+        database=os.getenv("POSTGRES_DB", "transit"),
+        user=os.getenv("POSTGRES_USER", "transit"),
+        password=os.getenv("POSTGRES_PASSWORD", "transit"),
+    )) as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT 1")
+
+
+def check_otp() -> None:
+    response = requests.get(OTP_URL, timeout=3)
+    if response.status_code >= 500:
+        response.raise_for_status()
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+@app.get("/ready")
+def ready():
+    checks = {}
+
+    try:
+        check_postgres()
+        checks["postgres"] = "ok"
+    except Exception as exc:
+        checks["postgres"] = "unavailable"
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "not_ready", "checks": checks},
+        ) from exc
+
+    try:
+        check_otp()
+        checks["otp"] = "ok"
+    except requests.RequestException as exc:
+        checks["otp"] = "unavailable"
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "not_ready", "checks": checks},
+        ) from exc
+
+    return {"status": "ready", "checks": checks}
 
 
 @app.get("/routes/reliable")
@@ -16,12 +87,11 @@ def reliable_routes(
     from_place: str | None = None,
     to_place: str | None = None
 ):
-    # geocoding resolve text locations if provided
     if from_place:
-        from_lat, from_lon = geocode(from_place)
+        from_lat, from_lon = resolve_place(from_place, "origin")
 
     if to_place:
-        to_lat, to_lon = geocode(to_place)
+        to_lat, to_lon = resolve_place(to_place, "destination")
 
     if None in (from_lat, from_lon, to_lat, to_lon):
         raise HTTPException(
@@ -29,44 +99,18 @@ def reliable_routes(
             detail="Provide either coordinates or place names"
         )
 
-    results = score_routes(from_lat, from_lon, to_lat, to_lon)
+    try:
+        results = score_routes(from_lat, from_lon, to_lat, to_lon)
+    except requests.RequestException as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not retrieve routes from OpenTripPlanner",
+        ) from exc
+    except Exception as exc:
+        logger.exception("Route scoring failed")
+        raise HTTPException(
+            status_code=503,
+            detail="Could not score routes",
+        ) from exc
 
-    response = []
-    seen = set()
-    rank = 1
-
-    # determine fastest duration first
-    fastest_duration = min(
-        round(r["itinerary"]["duration"] / 60)
-        for r in results
-    )
-
-    for r in results:
-        legs = format_itinerary(r["itinerary"])
-
-        key = tuple(
-            (leg["line"], leg["from"], leg["to"])
-            for leg in legs
-        )
-
-        if key in seen:
-            continue
-
-        seen.add(key)
-
-        duration = round(r["itinerary"]["duration"] / 60)
-
-        response.append({
-            "rank": rank,
-            "recommended": rank == 1,
-            "fastest": duration == fastest_duration,
-            "duration_min": duration,
-            "transfers": r["itinerary"]["transfers"],
-            "reliability_score": round(float(r["score"]), 2),
-            "explanation": r.get("explanation"),
-            "legs": legs
-        })
-
-        rank += 1
-
-    return response
+    return build_route_response(results)

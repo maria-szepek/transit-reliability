@@ -1,11 +1,21 @@
 FROM python:3.11-slim
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
 WORKDIR /app
 
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY pyproject.toml uv.lock ./
+COPY dbt/pyproject.toml ./dbt/
 COPY services/api/pyproject.toml ./services/api/
+COPY services/scoring/pyproject.toml ./services/scoring/
+COPY services/ingestion/pyproject.toml ./services/ingestion/
+COPY services/ui/pyproject.toml ./services/ui/
 COPY services ./services
 
-RUN pip install --no-cache-dir -e ./services/api
+RUN uv sync --locked --package transit-reliability-api --no-dev
 
 EXPOSE 8000
 

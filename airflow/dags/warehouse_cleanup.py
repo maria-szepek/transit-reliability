@@ -1,3 +1,5 @@
+# Airflow DAG that removes old realtime analytics rows from Postgres.
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -25,20 +27,20 @@ def cleanup():
 
     cleanup_queries = [
 
-        # high-volume streaming table (keep short window)
-        (
-            "analytics.realtime_trip_stop_signals",
-            """
-            DELETE FROM analytics.realtime_trip_stop_signals
-            WHERE ingestion_time < NOW() - interval '2 hours'
-            """ # just because feed_timestamp is in epoch seconds its difficult
-        ),
-
         # aggregated reliability (keep longer)
         (
             "analytics.realtime_stop_reliability",
             """
             DELETE FROM analytics.realtime_stop_reliability
+            WHERE window_end < NOW() - interval '24 hours'
+            """
+        ),
+
+        # route-level realtime scoring table consumed by the API
+        (
+            "analytics.realtime_route_reliability",
+            """
+            DELETE FROM analytics.realtime_route_reliability
             WHERE window_end < NOW() - interval '24 hours'
             """
         ),
@@ -51,8 +53,8 @@ def cleanup():
 
     # vacuum for performance
     print("Running VACUUM ANALYZE...")
-    cursor.execute("VACUUM ANALYZE analytics.realtime_trip_stop_signals")
     cursor.execute("VACUUM ANALYZE analytics.realtime_stop_reliability")
+    cursor.execute("VACUUM ANALYZE analytics.realtime_route_reliability")
 
     cursor.close()
     conn.close()

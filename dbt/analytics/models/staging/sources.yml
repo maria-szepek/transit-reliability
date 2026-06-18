@@ -5,13 +5,31 @@ sources:
     schema: raw
     tables:
       - name: stop_times
+        description: "exact times a vehicle arriving from a specific trip stops at a specific platform"
+        columns:
+          - name: trip_id
+            description: ""
+          - name: arrival_time
+            description: ""
+          - name: departure_time
+            description: ""
+          - name: stop_id
+            description: ""
+          - name: stop_sequence
+            description: "It identifies exactly where a stop falls on a trip's path"
+          - name: pickup_type
+            description: ""
+          - name: drop_off_type
+            description: ""
+          - name: timepoint
+            description: ""
+          - name: track
+            description: ""
+          - name: note_id
+            description: ""
       - name: trips
+        description: "distinct journeys that vehicles take along a specific route. It connects routes to the calendar schedules"
       - name: stops
+        description: "physical locations where vehicles stop. It maps the station hierarchy, coordinates, and platform-level granularity"
       - name: transfers
-      - name: routes
-      - name: calendar
-      - name: calendar_dates
-  # - name: raw_realtime
-  #   schema: raw_realtime
-  #   tables:
-  #     - name: trip_updates
+        description: "dictates how routing engines calculate walking paths and connection buffers between platforms or stations"

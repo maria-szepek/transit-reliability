@@ -1,12 +1,20 @@
 analytics:
+  target: "{{ env_var('WAREHOUSE_BACKEND', 'postgres') }}"
   outputs:
-    dev:
-      dbname: transit
-      host: localhost
-      pass: transit
-      port: 5432
+    postgres:
+      dbname: "{{ env_var('POSTGRES_DB', 'transit') }}"
+      host: "{{ env_var('POSTGRES_HOST', 'localhost') }}"
+      pass: "{{ env_var('POSTGRES_PASSWORD', 'transit') }}"
+      port: "{{ env_var('POSTGRES_PORT', '5432') | int }}"
       schema: analytics
       threads: 4
       type: postgres
-      user: transit
-  target: dev
+      user: "{{ env_var('POSTGRES_USER', 'transit') }}"
+    bigquery:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: analytics
+      location: US
+      keyfile: /opt/project/infra/keys/credentials.json
+      threads: 4

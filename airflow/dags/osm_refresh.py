@@ -1,3 +1,5 @@
+# Airflow DAG that refreshes the local OSM extract used by OpenTripPlanner.
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -48,19 +50,10 @@ with DAG(
         python_callable=download_osm,
     )
 
-    # rebuild_otp = BashOperator(
-    #     task_id="rebuild_otp_graph",
-    #     bash_command=(
-    #         "cd /opt/project && "
-    #         "docker compose restart otp"
-    #     ),
-    #     pool="otp_rebuild_pool",
-    # )
-
     rebuild_otp = BashOperator(
         task_id="rebuild_otp",
         bash_command="docker restart transit-reliability-otp-1",
         pool="otp_rebuild_pool",
-    )  # TODO this is exactly the same task as used in the otp rebuild task in osm refresh
+    )
 
     download >> rebuild_otp

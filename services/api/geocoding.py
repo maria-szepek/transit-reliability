@@ -1,4 +1,7 @@
+# Geocoding helper used by the API to turn user-entered place names into coordinates.
+
 import requests
+
 
 def geocode(place: str):
     url = "https://nominatim.openstreetmap.org/search"

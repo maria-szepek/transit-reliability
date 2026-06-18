@@ -1,14 +1,19 @@
 [project]
-name = "ingestion"
+name = "transit-reliability-ingestion"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.10"
+description = "GTFS static loading and GTFS-Realtime Kafka producer jobs"
+requires-python = ">=3.11,<3.14"
 dependencies = [
+    "google-cloud-bigquery[pandas]>=3.38.0",
+    "google-cloud-storage>=2.19.0,<3.2",
     "gtfs-realtime-bindings>=2.0.0",
     "kafka-python>=2.3.0",
-    "pandas>=2.3.3",
+    "pandas>=2.2.0,<2.3",
     "psycopg2-binary>=2.9.11",
     "requests>=2.33.1",
     "sqlalchemy>=2.0.48",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gtfs*", "realtime*"]
