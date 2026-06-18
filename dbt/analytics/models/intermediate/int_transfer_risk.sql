@@ -5,7 +5,10 @@
 {{
   config(
     materialized='table',
-    cluster_by=bigquery_config(["route_id", "station_id", "to_route_id"])
+    cluster_by=bigquery_config(["route_id", "station_id", "to_route_id"]),
+    post_hook=postgres_post_hooks([
+      "create index if not exists idx_int_transfer_risk_route_station_to_route on {{ this }} (route_id, station_id, to_route_id)"
+    ])
   )
 }}
 

@@ -16,6 +16,7 @@
     post_hook=postgres_post_hooks([
       "create index if not exists idx_stg_stop_times_stop on {{ this }} (stop_id)",
       "create index if not exists idx_stg_stop_times_trip on {{ this }} (trip_id)",
+      "create index if not exists idx_stg_stop_times_arrival_hour on {{ this }} (arrival_hour)",
       "create index if not exists idx_stg_stop_times_stop_time on {{ this }} (stop_id, arrival_time)"
     ])
   ) 

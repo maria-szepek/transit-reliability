@@ -1,3 +1,13 @@
+# (What I want to do next) : 
+
+* update README: good 1. context, 2. technical documentation + reasoning, 3. instructions to deploy + test, 4. add screenshots of the application usage and testing, also for the other services, and add screenshots for the data lineage graphs (dbt for example) 5. clear limitation documentation, 6. clear + actionable future work documentation   
+* Good user friendly error logging on ui when routes can not be retrieved yet, because OTP not done building the graph 
+* review project
+* rework Makefile
+* Add tests
+* CI/CD pipeline
+
+
 # Transit Reliability Intelligence System
 
 This project builds a local transit reliability platform for the New York City region.
@@ -29,6 +39,7 @@ The system currently combines:
 * FastAPI route scoring
 * a lightweight Streamlit UI
 * Airflow DAGs for local refresh/orchestration
+* optional GCS + BigQuery backend for static GTFS analytics
 
 The current reliability score is still a proxy. It is not yet a full observed delay model.
 
@@ -55,7 +66,7 @@ Important: realtime scoring currently measures **prediction instability**, not a
 Airflow
   -> downloads GTFS static feeds
   -> downloads OSM extract
-  -> loads GTFS into Postgres
+  -> loads GTFS into Postgres or BigQuery, depending on WAREHOUSE_BACKEND
   -> runs dbt models
   -> rebuilds OpenTripPlanner graph locally
 
@@ -73,9 +84,12 @@ Flink
   -> writes realtime stop and route reliability tables to Postgres
 
 Postgres
-  -> raw GTFS tables
-  -> dbt analytics models
+  -> raw GTFS tables and dbt analytics models in postgres mode
   -> realtime reliability tables
+
+GCS + BigQuery
+  -> raw GTFS zip archive in GCS
+  -> raw GTFS tables and dbt analytics models in bigquery mode
 
 OpenTripPlanner
   -> builds routing graph from GTFS + OSM
@@ -84,7 +98,7 @@ OpenTripPlanner
 FastAPI
   -> receives route requests
   -> asks OpenTripPlanner for itineraries
-  -> scores routes using static + realtime reliability signals
+  -> scores routes using static warehouse scores + local realtime reliability signals
 
 Streamlit
   -> simple route search and analytics UI
@@ -92,7 +106,11 @@ Streamlit
 
 ## Main Services
 
-Postgres: application warehouse for raw GTFS, dbt models, and realtime reliability tables.
+Postgres: local warehouse for raw GTFS, dbt models, and realtime reliability tables in postgres mode. Realtime serving tables still live here in bigquery mode.
+
+GCS: raw GTFS zip archive storage in bigquery mode.
+
+BigQuery: raw GTFS tables and dbt analytics models in bigquery mode.
 
 Airflow Postgres: separate metadata database for Airflow itself.
 
@@ -133,38 +151,47 @@ cd transit-reliability
 
 ### 2. Create `.env`
 
-Create a `.env` file in the project root.
+Copy the example and edit only what you need:
 
-Example:
+```bash
+cp .env.example .env
+```
+
+Minimal local example:
 
 ```env
+WAREHOUSE_BACKEND=postgres
+GCP_PROJECT_ID=
+
 POSTGRES_HOST=postgres
 POSTGRES_USER=transit
 POSTGRES_PASSWORD=transit
 POSTGRES_DB=transit
-
-OTP_URL=http://otp:8080/otp/routers/default/plan
-API_URL=http://api:8000/routes/reliable
-
-AIRFLOW_UID=50000
-DOCKER_GID=999
+POSTGRES_PORT=5432
 
 PGADMIN_DEFAULT_EMAIL=admin@admin.com
-PGADMIN_DEFAULT_PASSWORD=<generate-a-local-password>
-
-AIRFLOW_POSTGRES_PASSWORD=<generate-a-local-password>
-AIRFLOW__CORE__FERNET_KEY=<generate-with-airflow-fernet-key-or-python-cryptography>
-AIRFLOW__API_AUTH__JWT_SECRET=<generate-a-random-secret>
-_AIRFLOW_WWW_USER_USERNAME=airflow
-_AIRFLOW_WWW_USER_PASSWORD=<generate-a-local-password>
+PGADMIN_DEFAULT_PASSWORD=admin
 ```
 
-For local testing, the values can be simple. For anything public/cloud-facing, do not use default passwords.
+For the BigQuery backend:
+
+```env
+WAREHOUSE_BACKEND=bigquery
+GCP_PROJECT_ID=gcp-project-id
+
+POSTGRES_HOST=postgres
+POSTGRES_USER=transit
+POSTGRES_PASSWORD=transit
+POSTGRES_DB=transit
+POSTGRES_PORT=5432
+```
+
+The Airflow local defaults live in `docker-compose.yml` so the normal user-facing `.env` stays small. For anything public/cloud-facing, do not use default passwords.
 
 ### 3. Start the stack
 
 ```bash
-docker compose up --build
+docker compose up -d --build
 ```
 
 The first build can take a while because Airflow and Flink base images are large.
@@ -195,7 +222,7 @@ Trigger:
 
 `warehouse_cleanup` is a scheduled maintenance DAG. It does not need to be the first thing you run.
 
-The refresh DAGs download data, load GTFS into Postgres, run dbt, and rebuild OTP locally.
+The refresh DAGs download data, load GTFS into the selected backend, run dbt, and rebuild OTP locally.
 
 ### 5. Check services
 
@@ -219,7 +246,13 @@ If you run Streamlit outside Docker, set local host values if needed:
 
 ```bash
 POSTGRES_HOST=localhost API_URL=http://localhost:8000/routes/reliable uv run --package transit-reliability-ui streamlit run services/ui/app.py
+
 ```
+
+
+![alt text](<Screenshot from 2026-06-18 09-38-21.png>)
+
+
 
 ## Dependency Management
 
@@ -308,6 +341,13 @@ Run dbt manually:
 uv run --package transit-reliability-dbt dbt run --project-dir dbt/analytics --profiles-dir dbt
 ```
 
+The dbt target is selected by `WAREHOUSE_BACKEND`:
+
+```text
+WAREHOUSE_BACKEND=postgres  -> Postgres target
+WAREHOUSE_BACKEND=bigquery  -> BigQuery target
+```
+
 Parse/check dbt:
 
 ```bash
@@ -333,20 +373,46 @@ services/ingestion/realtime/gtfs_realtime_producer.py
 
 The raw high-volume trip-stop signal table was removed because it was not consumed by the application.
 
-## Cloud Direction
+In the BigQuery backend, realtime aggregates still remain in local Postgres. Direct realtime output to BigQuery is a later extension. Doing that cleanly would require adding a cloud-native sink such as Pub/Sub, GCS load files, or a dedicated BigQuery writer.
 
-The local version uses Docker Compose.
+## BigQuery Backend
 
-The intended cloud direction is:
+The default backend is local Postgres. The optional backend is hybrid:
 
-* GCS bucket for raw files / data lake
-* BigQuery for analytical warehouse tables
-* Terraform for resource creation
-* self-hosted or managed orchestration/streaming depending on cost and complexity
+```text
+local Docker Compose runtime
+GCS for raw GTFS zip archives
+BigQuery for raw GTFS tables and dbt analytics models
+local Postgres for realtime serving tables
+```
 
-The Terraform folder is a scaffold, not a production-ready deployment yet.
+Create GCP resources with Terraform:
 
-Important: the current Terraform config requires explicit ingress CIDR ranges. Do not expose Airflow/Flink/API broadly to `0.0.0.0/0`.
+```bash
+make infra-plan
+make infra-apply
+```
+
+Terraform creates:
+
+* one GCS bucket for raw GTFS zip files
+* BigQuery datasets: `raw`, `analytics`, `realtime`
+* a service account and IAM permissions for GCS/BigQuery access
+
+The bucket name is derived from the GCP project:
+
+```text
+<GCP_PROJECT_ID>-transit-reliability-raw
+```
+
+The BigQuery path uses partitioning and clustering where it matches the actual query pattern:
+
+* `stg_stop_times`: partitioned by `arrival_hour`, clustered by `trip_id` and `stop_id`
+* `int_transfer_events`: partitioned by `arrival_seconds`, clustered by `station_id`, `route_id`, and `departure_seconds`
+* `int_transfer_risk`: clustered by `route_id`, `station_id`, and `to_route_id`
+* `mart_route_reliability`: clustered by `route_id`
+
+The Postgres backend uses indexes for the same purpose. Real Postgres table partitioning is intentionally not used because it would add maintenance complexity without much benefit for this local-sized warehouse.
 
 ## Local-Only Security Notes
 
@@ -369,7 +435,7 @@ Known limitations:
 * transfer risk is still approximate
 * reliability is route-averaged, which can hide stop-level or direction-level problems
 * limited automated test coverage
-* cloud deployment is scaffolded but not finished
+* BigQuery backend is implemented as a hybrid local/cloud path, not a full cloud deployment
 * OTP rebuild is local/Docker-specific right now
 
 ## Future Work
@@ -395,10 +461,15 @@ Planned improvements:
 * Apache Flink / PyFlink
 * OpenTripPlanner
 * Docker Compose
-* Terraform scaffold for GCP
+* Terraform for GCP resources
+* Google Cloud Storage
+* BigQuery
 
 ## Status
 
-Local deployment, static reliability modeling, realtime ingestion, route scoring, and the API/UI prototype are implemented.
+Local deployment, static reliability modeling, realtime ingestion, route scoring, the API/UI prototype, and the hybrid BigQuery backend are implemented.
 
 The project is still a prototype. It is meant to demonstrate backend/data engineering work, not to provide production-grade transit reliability predictions yet.
+
+
+

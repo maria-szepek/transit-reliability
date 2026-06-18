@@ -1,5 +1,0 @@
-- for me the scorer is not supposed to aggregate anything, that's what flink is supposed to do. review the job script if it makes sense, good pracise code,  nothing created that is not neeed /s consumed anywhere, and good naming everywhere. 
-
-- you also clarified: job measures prediction drift, not actual delay. That is okay, but the naming/explanation must stay honest. It answers: “How unstable are realtime predictions?” not “Was the train late compared to schedule?”. question : is there a way to measure and make usable for this project the actual delay compared to schedule?
-
-- you also said: you risk replaying old Kafka messages and duplicating rows. options included : .... i dont remember, you mentioned among others upserting. can we handle this? 

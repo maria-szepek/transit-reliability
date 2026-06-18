@@ -133,6 +133,11 @@ services:
       sbom: false
     env_file:
       - .env
+    environment:
+      OTP_URL: http://otp:8080/otp/routers/default/plan
+      GOOGLE_APPLICATION_CREDENTIALS: /app/infra/keys/credentials.json
+    volumes:
+      - ./infra/keys:/app/infra/keys:ro
     depends_on:
       postgres:
         condition: service_started
