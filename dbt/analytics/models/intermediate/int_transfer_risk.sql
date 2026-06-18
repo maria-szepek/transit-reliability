@@ -2,7 +2,12 @@
 -- A transfer opportunity is modeled as arriving at one stop/platform and catching
 -- the next departure on another route within the same station/parent station.
 -- Transfers requiring more than 20 minutes of waiting are treated as not useful.
-{{ config(materialized='table') }}
+{{
+  config(
+    materialized='table',
+    cluster_by=bigquery_config(["route_id", "station_id", "to_route_id"])
+  )
+}}
 
 with candidate_transfers as (
 

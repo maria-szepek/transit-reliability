@@ -3,7 +3,8 @@
 {{ 
     config(
         materialized='table',
-        indexes=[{'columns': ['route_id']}]
+        cluster_by=bigquery_config(["route_id"]),
+        indexes=postgres_indexes([{'columns': ['route_id']}])
     ) 
 }}
 

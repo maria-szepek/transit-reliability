@@ -2,7 +2,7 @@
 #
 # Flow:
 #   -> fetches OTP itineraries from otp_client -> extracts route IDs
-#   -> loads static route scores from Postgres
+#   -> loads static route scores from the selected warehouse
 #   -> loads realtime route risks from Postgres
 #   -> combines static + realtime signals
 #   -> ranks itineraries
@@ -10,9 +10,13 @@
 import os
 from contextlib import closing
 
+from google.cloud import bigquery
 import psycopg2
 
 from services.scoring.otp_client import extract_route_ids, get_itineraries
+
+WAREHOUSE_BACKEND = os.getenv("WAREHOUSE_BACKEND", "postgres").lower()
+GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID")
 
 
 def connect():
@@ -23,8 +27,16 @@ def connect():
         password=os.getenv("POSTGRES_PASSWORD", "transit"),
     )
 
-#  -> loads static route scores from Postgres
+
 def get_static_route_scores(route_ids):
+    if WAREHOUSE_BACKEND == "bigquery":
+        return get_static_route_scores_bigquery(route_ids)
+
+    return get_static_route_scores_postgres(route_ids)
+
+
+#  -> loads static route scores from Postgres
+def get_static_route_scores_postgres(route_ids):
     if not route_ids:
         return {}
 
@@ -52,6 +64,41 @@ def get_static_route_scores(route_ids):
         }
         for route_id, score, explanation in rows
     }
+
+
+def get_static_route_scores_bigquery(route_ids):
+    if not route_ids:
+        return {}
+
+    if not GCP_PROJECT_ID:
+        raise ValueError("GCP_PROJECT_ID must be set when WAREHOUSE_BACKEND=bigquery")
+
+    client = bigquery.Client(project=GCP_PROJECT_ID)
+    query = f"""
+        SELECT
+            r.route_id,
+            r.reliability_score,
+            e.explanation
+        FROM `{GCP_PROJECT_ID}.analytics.mart_route_reliability` r
+        LEFT JOIN `{GCP_PROJECT_ID}.analytics.mart_route_explanations` e
+            ON r.route_id = e.route_id
+        WHERE r.route_id IN UNNEST(@route_ids)
+    """
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ArrayQueryParameter("route_ids", "STRING", list(route_ids))
+        ]
+    )
+    rows = client.query(query, job_config=job_config).result()
+
+    return {
+        row.route_id: {
+            "score": row.reliability_score,
+            "explanation": row.explanation,
+        }
+        for row in rows
+    }
+
 
 # -> loads realtime route risks from Postgres
 def get_realtime_route_risks(route_ids):

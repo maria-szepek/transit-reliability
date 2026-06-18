@@ -1,4 +1,3 @@
-credentials.json 
 #################################
 # Python
 #################################
@@ -84,6 +83,9 @@ tmp/
 temp/
 
 # Local .terraform directories
+credentials.json 
+infra/keys/
 .terraform/
 *.tfstate
 *.tfstate.*
+infra/terraform/terraform.tfvars

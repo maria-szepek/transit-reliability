@@ -3,13 +3,23 @@
 {{
   config(
     materialized='table',
-    post_hook=[
+    partition_by=bigquery_config({
+      "field": "arrival_seconds",
+      "data_type": "int64",
+      "range": {
+        "start": 0,
+        "end": 172800,
+        "interval": 3600
+      }
+    }),
+    cluster_by=bigquery_config(["station_id", "route_id", "departure_seconds"]),
+    post_hook=postgres_post_hooks([
       "create index if not exists idx_int_transfer_events_station_arrival on {{ this }} (station_id, arrival_seconds)",
       "create index if not exists idx_int_transfer_events_station_departure on {{ this }} (station_id, departure_seconds)",
       "create index if not exists idx_int_transfer_events_station_route_departure on {{ this }} (station_id, route_id, departure_seconds)",
       "create index if not exists idx_int_transfer_events_stop on {{ this }} (stop_id)",
       "analyze {{ this }}"
-    ]
+    ])
   )
 }}
 

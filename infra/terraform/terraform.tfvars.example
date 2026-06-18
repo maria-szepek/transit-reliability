@@ -1,6 +1,11 @@
-project_id = "your-gcp-project-id"
-region     = "us-central1"
-zone       = "us-central1-b"
-
-# Replace with your public IP range before applying.
-allowed_ingress_cidr_blocks = ["203.0.113.10/32"]
+# Normal usage does not require terraform.tfvars.
+#
+# Use the root .env file:
+#   WAREHOUSE_BACKEND=bigquery
+#   GCP_PROJECT_ID=your-gcp-project-id
+#
+# Then run from the repository root:
+#   make infra-plan
+#   make infra-apply
+#
+# Only create terraform.tfvars if you intentionally want to bypass the Makefile.

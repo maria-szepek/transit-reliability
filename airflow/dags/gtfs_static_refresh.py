@@ -1,7 +1,9 @@
-# Airflow DAG that downloads GTFS static feeds, loads them to Postgres, runs dbt, and rebuilds OTP.
+# Airflow DAG that refreshes GTFS static data for either the local Postgres
+# warehouse or the hybrid GCS/BigQuery warehouse path.
 
 from __future__ import annotations
 
+import os
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -18,6 +20,12 @@ DATA_DIR = PROJECT_ROOT / "data"
 
 TMP_DIR = DATA_DIR / "tmp"
 ARCHIVE_DIR = DATA_DIR / "archive"
+WAREHOUSE_BACKEND = os.getenv("WAREHOUSE_BACKEND", "postgres").lower()
+GTFS_LOADER_SCRIPT = (
+    "services/ingestion/gtfs/load_gtfs_bigquery.py"
+    if WAREHOUSE_BACKEND == "bigquery"
+    else "services/ingestion/gtfs/load_gtfs.py"
+)
 
 GTFS_FEEDS = {
     "gtfs_b.zip": "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_b.zip",
@@ -89,7 +97,7 @@ with DAG(
         task_id="ingest_gtfs",
         bash_command=(
             "cd /opt/project && "
-            "python -u services/ingestion/gtfs/load_gtfs.py"
+            f"python -u {GTFS_LOADER_SCRIPT}"
         ),
     )
 
@@ -109,3 +117,4 @@ with DAG(
 
     download >> ingest >> dbt_run
     download >> rebuild_otp
+

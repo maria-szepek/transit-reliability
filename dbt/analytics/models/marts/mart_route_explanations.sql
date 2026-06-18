@@ -22,34 +22,15 @@ select
     route_id,
     reliability_score,
 
-    concat_ws(
+    {{ join_non_null(
         ', ',
-
-        case 
-            when avg_stop_connectivity > 5 
-            then 'strong stop connectivity' 
-        end,
-
-        case 
-            when avg_trips_per_hour > 6 
-            then 'frequent scheduled service' 
-        end,
-
-        case 
-            when min_trips_per_hour > 2 
-            then 'strong minimum service level' 
-        end,
-
-        case 
-            when avg_transfer_risk < 0.4 
-            then 'lower scheduled transfer risk' 
-        end,
-
-        case 
-            when headway_variability_ratio < 0.5
-            then 'more even vehicle spacing' 
-        end
-
-    ) as explanation
+        [
+            "case when avg_stop_connectivity > 5 then 'strong stop connectivity' end",
+            "case when avg_trips_per_hour > 6 then 'frequent scheduled service' end",
+            "case when min_trips_per_hour > 2 then 'strong minimum service level' end",
+            "case when avg_transfer_risk < 0.4 then 'lower scheduled transfer risk' end",
+            "case when headway_variability_ratio < 0.5 then 'more even vehicle spacing' end",
+        ],
+    ) }} as explanation
 
 from base

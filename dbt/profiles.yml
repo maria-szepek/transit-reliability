@@ -1,6 +1,7 @@
 analytics:
+  target: "{{ env_var('WAREHOUSE_BACKEND', 'postgres') }}"
   outputs:
-    dev:
+    postgres:
       dbname: "{{ env_var('POSTGRES_DB', 'transit') }}"
       host: "{{ env_var('POSTGRES_HOST', 'localhost') }}"
       pass: "{{ env_var('POSTGRES_PASSWORD', 'transit') }}"
@@ -9,4 +10,11 @@ analytics:
       threads: 4
       type: postgres
       user: "{{ env_var('POSTGRES_USER', 'transit') }}"
-  target: dev
+    bigquery:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: analytics
+      location: US
+      keyfile: /opt/project/infra/keys/credentials.json
+      threads: 4
